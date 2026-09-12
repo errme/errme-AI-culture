@@ -228,7 +228,35 @@ async function main() {
     !!(errBoard.body && errBoard.body.data && errBoard.body.data.total >= 1 && errBoard.body.data.rows.length >= 1),
     errBoard.body && errBoard.body.data ? `累计=${errBoard.body.data.total} 最近=${errBoard.body.data.rows.length}` : '调用失败')
 
-  /* ---------------- 8. 收尾 ---------------- */
+  /* ---------------- 8. 老 jQuery 全局隔离（防回归） ----------------
+   * 背景：文化详情页会加载 jQuery 1.11.1 给老插件用，而 jQuery 是**全局单例**。
+   * 若不在加载后调用 noConflict(true) 把全局还原，访问一次详情页就会把整个 SPA 的
+   * window.$ 永久降级成 1.11.1 —— 之后用 3.4.1 注册的事件监听器无法再被 off() 解绑
+   * （jQuery 各副本各自维护事件存储），表现为监听器持续泄漏。
+   */
+  await goto(BASE + '/', 3000)
+  const beforeJq = await evaluate(`(window.jQuery && window.jQuery.fn) ? window.jQuery.fn.jquery : null`)
+
+  const listResp = await jsonFetch(API + '/api/culture/list?limit=1&offset=0')
+  const one = (listResp.body && listResp.body.data && (listResp.body.data.rows || [])[0]) || null
+  if (!one) {
+    record('老 jQuery 全局隔离（详情页不污染全局）', false, '没有可用于测试的文化数据')
+  } else {
+    await goto(BASE + '/culture/' + one.id, 4500)
+    const afterDetail = await evaluate(`(window.jQuery && window.jQuery.fn) ? window.jQuery.fn.jquery : null`)
+    record('老 jQuery 全局隔离：访问详情页后全局仍是 3.4.1（1.11.1 已被 noConflict 收回）',
+      !!beforeJq && /^3\.4\./.test(String(beforeJq)) && afterDetail === beforeJq,
+      `访问前=${beforeJq} 访问详情页后=${afterDetail}`)
+
+    // 再切到别的路由，确认全局 jQuery 没有被误摘掉
+    // （loadScript 按 src 去重，若老脚本本次并未真正执行，就不能调用 noConflict）
+    await goto(BASE + '/about', 3000)
+    const stillOk = await evaluate(`(window.jQuery && window.jQuery.fn) ? window.jQuery.fn.jquery : null`)
+    record('离开详情页后全局 jQuery 仍可正常使用（未被误摘）',
+      !!stillOk && /^3\.4\./.test(String(stillOk)), `jQuery=${stillOk}`)
+  }
+
+  /* ---------------- 9. 收尾 ---------------- */
   for (const fn of cleanup.reverse()) { try { await fn() } catch (e) { /* 忽略 */ } }
   console.log('\n测试数据已清理')
   record('全程无控制台报错', errors.length === 0, errors.slice(0, 2).join(' ; ').slice(0, 200))

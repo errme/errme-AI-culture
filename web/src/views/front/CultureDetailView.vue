@@ -183,7 +183,8 @@ import ArticleToc from '@/components/front/ArticleToc.vue'
 import CommentSection from '@/components/front/CommentSection.vue'
 import { getCategorys, getCultureDetail, getCultureList, likeCulture, cancelLike } from '@/api/front'
 import { coverUrl, pickPage } from '@/utils/format'
-import { loadScripts, loadStyle, whenJQuery } from '@/utils/loadScript'
+import { loadStyle, whenJQuery } from '@/utils/loadScript'
+import { loadLegacyJQuery } from '@/utils/legacyJq'
 import { useFrontUserStore } from '@/stores/frontUser'
 import { absoluteUrl, truncate, useSeo } from '@/utils/seo'
 import { collectHeadings, trackReading } from '@/utils/toc'
@@ -209,6 +210,11 @@ const tocItems = ref([])
 const readingProgress = ref(0)
 const activeHeading = ref('')
 let readingTracker = null
+/**
+ * 本页用到的老 jQuery 实例（1.11.1）。
+ * 由 loadLegacyJQuery 隔离后返回，避免覆盖全局的 3.4.1；详见 utils/legacyJq.js。
+ */
+let legacyJq = null
 const loadError = ref('')
 /** 本地收藏态：用于 like / cancel 切换（后端在「已收藏」时会返回 400 提示） */
 const liked = ref(false)
@@ -684,9 +690,17 @@ onMounted(async () => {
   loadStyle('/index/css/diaspora.css')
   loadStyle('/index/css/default-skin.css')
 
-  // 3) 原 detail.html 的脚本，按原顺序加载（jQuery -> jquery-confirm -> diaspora.js）
+  // 3) 原 detail.html 的脚本，按原顺序加载（jQuery -> diaspora.js）
+  //
+  // 这里必须用 loadLegacyJQuery 而不是裸 loadScripts：
+  // 该文件里的 jQuery 1.11.1 会覆盖 front.html 全局加载的 3.4.1，而 jQuery 是全局单例。
+  // loadLegacyJQuery 会在脚本执行完后立刻 noConflict(true)，把全局还原成 3.4.1，
+  // 同时把 1.11.1 实例返回给本页备用。
+  // 原来的写法不做还原 —— 访问过一次文化详情页之后，整个 SPA 会话的 window.$ 就永久
+  // 变成了 1.11.1，导致 FrontLayout 用 3.4.1 注册的 $(window).on('scroll') 无法用
+  // 新实例 off() 解绑（jQuery 各副本各自维护事件存储），监听器持续泄漏。
   try {
-    await loadScripts([
+    legacyJq = await loadLegacyJQuery([
       '/index/js/jquery-1.11.1.min.js',
       '/index/js/diaspora.js'
     ])
