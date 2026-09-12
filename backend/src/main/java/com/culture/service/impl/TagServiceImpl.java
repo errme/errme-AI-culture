@@ -161,9 +161,18 @@ public class TagServiceImpl implements TagService {
             evictFrontCache();
             return;
         }
+        // 先去 null 去重，再**一次性批量插入**。
+        // 原先这里是 for 循环逐条 bindCulture：一次「设置标签」= N 次数据库往返，
+        // 并在同一事务里持有 N 次行锁（最多 500 个标签），锁持有时间随 N 线性增长。
+        // 去重同时也能避免同一批次里出现重复行（虽然 insert ignore 会兜住，
+        // 但让 SQL 更短、语义更清晰）。
+        List<Long> safeIds = new ArrayList<>();
         for (Long tagId : tagIds) {
-            if (tagId == null) continue;
-            tagMapper.bindCulture(cultureId, tagId);
+            if (tagId == null || safeIds.contains(tagId)) continue;
+            safeIds.add(tagId);
+        }
+        if (!safeIds.isEmpty()) {
+            tagMapper.batchBindCulture(cultureId, safeIds);
         }
         evictFrontCache();
     }

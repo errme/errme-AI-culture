@@ -1,5 +1,6 @@
 package com.culture.mapper;
 
+import com.culture.entity.Role;
 import com.culture.entity.User;
 import com.culture.query.UserQuery;
 import org.apache.ibatis.annotations.Mapper;
@@ -54,6 +55,15 @@ public interface UserMapper {
     Long queryTotal(UserQuery userQuery);
 
     List<User> queryData(UserQuery userQuery);
+
+    /**
+     * 批量查询多个用户的角色（<b>替代逐行查询的 N+1</b>）。
+     *
+     * <p>结果每行是一个「用户-角色」对，用户 id 由 {@link com.culture.entity.Role#getUserId()}
+     * 承载（该字段 {@code @JsonIgnore}，不会出现在响应里）。调用方按 userId 分组后
+     * 再塞回各个 User，即可把「1 + N 次 SQL」降为「1 次」。</p>
+     */
+    List<Role> getRolesByUserIds(@Param("userIds") List<Long> userIds);
 
     /** 逻辑删除 */
     void deleteUser(Long id);

@@ -115,15 +115,35 @@
 		<result property="deleted" column="deleted"></result>
 		<result property="remark" column="remark"></result>
 		<result property="extra" column="extra"></result>
-		<collection property="roles" column="id" select="getRoleByUserId"></collection>
+		<!--
+		  这里原本还有：
+		    <collection property="roles" column="id" select="getRoleByUserId"/>
+		  它会对分页结果的**每一行**再发一条 SQL 查该用户的角色（经典 N+1，
+		  一页 N 个用户 = 1+N 次查询）。现已移除，改由 UserServiceImpl.listpage
+		  调用 getRolesByUserIds 一次性批量取回后按 userId 分组回填。
+		-->
 	</resultMap>
 
-	<select id="getRoleByUserId" parameterType="java.lang.Long" resultType="Role">
-		select r.id, r.code sn, r.name, r.description `desc`
+	<!--
+	  批量查询多个用户的角色，替代 resultMap 里 <collection select="..."> 的逐行查询。
+	  一次 where user_id in (...) 取回，调用方按 userId 分组再塞回各个 User。
+	  分组键由 Role.userId 承载（@JsonIgnore，不出现在响应中）。
+	-->
+	<select id="getRolesByUserIds" resultType="Role">
+		select ur.user_id userId, r.id, r.code sn, r.name, r.description `desc`
 		from sys_user_role ur
 		join sys_role r on ur.role_id = r.id
-		where ur.user_id = #{id}
+		where ur.user_id in
+		<foreach collection="userIds" item="uid" open="(" separator="," close=")">
+			#{uid}
+		</foreach>
 	</select>
+
+	<!--
+	  单用户查角色的 getRoleByUserId 已删除：
+	  它原先只被 resultMap 的 <collection select="..."> 调用（就是 N+1 的来源），
+	  改用上面的 getRolesByUserIds 批量版本后已无任何引用。
+	-->
 
 	<!-- 逻辑删除：置 deleted=1，保留历史数据 -->
 	<delete id="deleteUser" parameterType="java.lang.Long" >

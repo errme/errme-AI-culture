@@ -94,9 +94,7 @@ public class ApiHomeController {
      */
     @GetMapping("/culture/list")
     public ApiResult<PageList> cultureList(CultureQuery query) {
-        if (query.getPage() == null) query.setPage(1);
-        if (query.getPageSize() == null) query.setPageSize(10);
-        query.setOffset((query.getPage() - 1) * query.getPageSize());
+        query.normalizePaging();
         // 前台只展示已发布内容（放在参数绑定之后覆盖，防止被请求参数绕过）
         query.setStatus(PUBLISHED_STATUS);
         return ApiResult.ok(cultureService.listpage(query));

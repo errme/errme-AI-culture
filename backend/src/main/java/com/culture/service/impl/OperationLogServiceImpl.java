@@ -44,9 +44,7 @@ public class OperationLogServiceImpl implements OperationLogService {
     @Override
     public PageList page(OperationLogQuery query) {
         if (query == null) query = new OperationLogQuery();
-        if (query.getPage() == null || query.getPage() < 1) query.setPage(1);
-        if (query.getPageSize() == null || query.getPageSize() < 1) query.setPageSize(10);
-        query.setOffset((query.getPage() - 1) * query.getPageSize());
+        query.normalizePaging();
         if (query.getModule() != null) {
             String m = query.getModule().trim();
             query.setModule(m.isEmpty() ? null : m);

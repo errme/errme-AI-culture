@@ -158,9 +158,7 @@ public class ApiAdminController {
      */
     @GetMapping("/culture/list")
     public ApiResult<PageList> cultureList(CultureQuery query) {
-        if (query.getPage() == null) query.setPage(1);
-        if (query.getPageSize() == null) query.setPageSize(10);
-        query.setOffset((query.getPage() - 1) * query.getPageSize());
+        query.normalizePaging();
         return ApiResult.ok(cultureService.listpageForAdmin(query));
     }
 
@@ -689,9 +687,7 @@ public class ApiAdminController {
 
     @GetMapping("/category/list")
     public ApiResult<PageList> categoryList(CategoryQuery query) {
-        if (query.getPage() == null) query.setPage(1);
-        if (query.getPageSize() == null) query.setPageSize(10);
-        query.setOffset((query.getPage() - 1) * query.getPageSize());
+        query.normalizePaging();
         return ApiResult.ok(categoryService.listpage(query));
     }
 
@@ -734,9 +730,7 @@ public class ApiAdminController {
 
     @GetMapping("/announcement/list")
     public ApiResult<PageList> announcementList(AnnouncementQuery query) {
-        if (query.getPage() == null) query.setPage(1);
-        if (query.getPageSize() == null) query.setPageSize(10);
-        query.setOffset((query.getPage() - 1) * query.getPageSize());
+        query.normalizePaging();
         return ApiResult.ok(announcementService.listpage(query));
     }
 
@@ -779,9 +773,7 @@ public class ApiAdminController {
 
     @GetMapping("/sentence/list")
     public ApiResult<PageList> sentenceList(SentenceQuery query) {
-        if (query.getPage() == null) query.setPage(1);
-        if (query.getPageSize() == null) query.setPageSize(10);
-        query.setOffset((query.getPage() - 1) * query.getPageSize());
+        query.normalizePaging();
         return ApiResult.ok(sentenceService.listpage(query));
     }
 
@@ -830,9 +822,7 @@ public class ApiAdminController {
 
     @GetMapping("/user/list")
     public ApiResult<PageList> userList(UserQuery query) {
-        if (query.getPage() == null) query.setPage(1);
-        if (query.getPageSize() == null) query.setPageSize(10);
-        query.setOffset((query.getPage() - 1) * query.getPageSize());
+        query.normalizePaging();
         PageList pageList = userService.listpage(query);
         // A3：用户列表 35px 头像改用缩略图（headImg -> xxx_thumb.jpg，原图在 headImgOriginal）；
         //     个人资料（/admin/me、/api/user/center）不经过这里，仍是原图

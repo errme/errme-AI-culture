@@ -201,9 +201,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     public PageList adminPage(CommentQuery query) {
         if (query == null) query = new CommentQuery();
-        if (query.getPage() == null || query.getPage() < 1) query.setPage(1);
-        if (query.getPageSize() == null || query.getPageSize() < 1) query.setPageSize(10);
-        query.setOffset((query.getPage() - 1) * query.getPageSize());
+        query.normalizePaging();
         if (query.getKeyword() != null) {
             String kw = query.getKeyword().trim();
             query.setKeyword(kw.isEmpty() ? null : kw);

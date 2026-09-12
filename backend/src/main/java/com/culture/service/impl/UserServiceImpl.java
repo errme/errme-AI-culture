@@ -1,6 +1,7 @@
 package com.culture.service.impl;
 
 import com.culture.auth.service.BusinessException;
+import com.culture.entity.Role;
 import com.culture.entity.User;
 import com.culture.mapper.UserMapper;
 import com.culture.query.UserQuery;
@@ -13,7 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 用户服务实现。
@@ -85,10 +88,50 @@ public class UserServiceImpl implements UserService {
         // 查询总的条数
         Long total = userMapper.queryTotal(userQuery);
         List<User> users = userMapper.queryData(userQuery);
+        // 批量回填角色（见下方 attachRoles），替代原先 resultMap 里逐行查询的 N+1
+        attachRoles(users);
         pageList.setTotal(total);
         pageList.setRows(users);
         // 分页查询的数据
         return pageList;
+    }
+
+    /**
+     * 一次性批量回填这一页用户的角色，避免 N+1。
+     *
+     * <p>原先 {@code UserMap} resultMap 里是
+     * {@code <collection property="roles" column="id" select="getRoleByUserId"/>}，
+     * MyBatis 会对分页结果的每一行再发一条 SQL —— 一页 N 个用户就是 1 + N 次查询
+     * （分页上限放到 200 之后最多 201 次）。</p>
+     *
+     * <p>现在改为一条 {@code where user_id in (...)} 取回「用户-角色」对，
+     * 再按 userId 分组塞回各个 User。与 {@code TagServiceImpl.tagsOfCultures}
+     * 是同一套做法。</p>
+     */
+    private void attachRoles(List<User> users) {
+        if (users == null || users.isEmpty()) return;
+
+        List<Long> ids = new ArrayList<>();
+        for (User u : users) {
+            if (u != null && u.getId() != null) ids.add(u.getId());
+        }
+        if (ids.isEmpty()) return;
+
+        Map<Long, List<Role>> grouped = new HashMap<>();
+        List<Role> rows = userMapper.getRolesByUserIds(ids);
+        if (rows != null) {
+            for (Role r : rows) {
+                if (r == null || r.getUserId() == null) continue;
+                grouped.computeIfAbsent(r.getUserId(), k -> new ArrayList<>()).add(r);
+            }
+        }
+        for (User u : users) {
+            if (u == null) continue;
+            List<Role> roles = grouped.get(u.getId());
+            // 没有角色的用户给空列表而不是 null：前端 v-if="!(row.roles && row.roles.length)"
+            // 两种都能处理，但列表语义更明确，也避免下游再判空
+            u.setRoles(roles == null ? new ArrayList<>() : roles);
+        }
     }
 
     //删除用户

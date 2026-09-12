@@ -64,6 +64,25 @@ public interface TagMapper {
     int bindCulture(@Param("cultureId") Long cultureId, @Param("tagId") Long tagId);
 
     /**
+     * 批量绑定一个文化的多个标签（<b>替代循环调用 bindCulture</b>）。
+     *
+     * <p>原先 TagServiceImpl 里是 {@code for (tagId : tagIds) bindCulture(...)}，
+     * 一次「设置内容标签」会发出 N 次数据库往返，并在同一事务里持有 N 次行锁，
+     * 锁持有时间随 N 线性增长（一次最多 500 个标签）。
+     * 改成单条 {@code insert ignore ... values (...),(...)  } 之后只有 1 次往返。</p>
+     *
+     * <p>仍用 {@code insert ignore}：重复绑定依赖唯一键 uk_culture_tag 静默忽略，
+     * 与单条版本语义完全一致。</p>
+     */
+    @Insert("<script>" +
+            "insert ignore into biz_culture_tag(culture_id, tag_id, created_at) values " +
+            "<foreach collection='tagIds' item='tagId' separator=','>" +
+            "(#{cultureId}, #{tagId}, now())" +
+            "</foreach>" +
+            "</script>")
+    int batchBindCulture(@Param("cultureId") Long cultureId, @Param("tagIds") List<Long> tagIds);
+
+    /**
      * 批量查询多个文化的标签（列表页一次取回，避免 N+1）。
      * 结果里每行的 cultureId 表示该标签属于哪个文化，由 Tag.cultureId 承载（不输出到 JSON）。
      */
