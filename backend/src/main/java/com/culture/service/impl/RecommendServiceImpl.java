@@ -1,65 +1,58 @@
 package com.culture.service.impl;
 
-
 import com.culture.entity.Culture;
 import com.culture.mapper.CultureMapper;
 import com.culture.service.RecommendService;
-import org.apache.mahout.cf.taste.common.TasteException;
-import org.apache.mahout.cf.taste.impl.neighborhood.NearestNUserNeighborhood;
-import org.apache.mahout.cf.taste.impl.recommender.GenericUserBasedRecommender;
-import org.apache.mahout.cf.taste.impl.similarity.CityBlockSimilarity;
-import org.apache.mahout.cf.taste.model.DataModel;
-import org.apache.mahout.cf.taste.neighborhood.UserNeighborhood;
-import org.apache.mahout.cf.taste.recommender.RecommendedItem;
-import org.apache.mahout.cf.taste.recommender.Recommender;
-import org.apache.mahout.cf.taste.similarity.UserSimilarity;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
+/**
+ * 前台推荐服务——基于用户的协同过滤。
+ *
+ * <p><b>实现已从 Apache Mahout 改为纯 SQL</b>（见
+ * {@link CultureMapper#findRecommendByUser}）：</p>
+ * <ul>
+ *   <li>Mahout 0.9 发布于 2014 年，依赖 hadoop-core 1.2.1，且整体基于 {@code javax.*}，
+ *       与 Spring Boot 3（{@code jakarta.*}）不可能共存；</li>
+ *   <li>本项目的 {@code biz_like} 只有数百行数据，为此引入 Hadoop + Lucene + Mahout
+ *       约 30MB 依赖属于严重过度设计；</li>
+ *   <li>原实现还在<b>每次请求</b>重建 UserSimilarity / UserNeighborhood / Recommender
+ *       三个对象，缓存一失效就是一次完整重算。</li>
+ * </ul>
+ *
+ * <p>现在整条链路只发一条 SQL，排序语义（共同收藏者数量优先、其次偏好值之和）
+ * 与原协同过滤一致。冷启动用户（无任何收藏）返回空列表，
+ * 由 {@code CultureServiceImpl} 用「热门内容」兜底，与原逻辑相同。</p>
+ */
 @Service
 public class RecommendServiceImpl implements RecommendService {
 
-    @Autowired
-    private CultureMapper cultureMapper;
+    private static final Logger log = LoggerFactory.getLogger(RecommendServiceImpl.class);
 
-    @Autowired
-    private DataModel dataModel;
-    //接口封装了对用户物品基本数据部分，提供了获得对用户物品内容的分析基本要求
+    private final CultureMapper cultureMapper;
+
+    /** 构造注入：字段注入在单元测试里无法直接替换依赖 */
+    public RecommendServiceImpl(CultureMapper cultureMapper) {
+        this.cultureMapper = cultureMapper;
+    }
 
     @Override
     public List<Culture> getRecommendItemsByUser(Long userId, int howMany) {
-
-        List<Culture> list = new ArrayList<>();
-        try {
-            //similarity定义相似度算法的接口 计算相似度，相似度算法有很多种，采用基于曼哈顿距离相关性的相似度
-            UserSimilarity similarity = new CityBlockSimilarity(dataModel);
-            //neighborhood邻域 定义近邻算法的接口
-            //计算最近邻域，邻居有两种算法，基于固定数量的邻居和基于相似度的邻居，这里使用基于固定数量的邻居
-            UserNeighborhood userNeighborhood = new NearestNUserNeighborhood(howMany, similarity, dataModel);
-            //recommender定义推荐算法接口 构建推荐器，基于用户的协同过滤推荐
-            Recommender recommender = new GenericUserBasedRecommender(dataModel, userNeighborhood, similarity);
-            long start = System.currentTimeMillis();
-            //推荐文化
-            List<RecommendedItem> recommendedItemList = recommender.recommend(userId, howMany);
-            List<Long> itemIds = new ArrayList<Long>();
-            for (RecommendedItem recommendedItem : recommendedItemList) {
-                System.out.println(recommendedItem);
-                itemIds.add(recommendedItem.getItemID());
-            }
-            //根据id查询文化
-            if (itemIds != null && itemIds.size() > 0) {
-                list = cultureMapper.findAllByIds(itemIds);
-            } else {
-                list = new ArrayList<>();
-            }
-        } catch (TasteException e) {
-            // 协同过滤异常（如用户无行为/数据过少）时返回空列表，由上层用热门内容兜底
-            e.printStackTrace();
-            return new ArrayList<>();
+        if (userId == null || howMany <= 0) {
+            return Collections.emptyList();
         }
-        return list;
+        try {
+            List<Culture> list = cultureMapper.findRecommendByUser(userId, howMany);
+            return list == null ? Collections.emptyList() : list;
+        } catch (Exception e) {
+            // 推荐只是详情页的锦上添花：任何异常都不应让详情页 500。
+            // 用参数化日志而不是 e.printStackTrace()（后者绕过日志框架，生产环境等于丢异常）。
+            log.warn("[recommend] 用户 {} 的推荐查询失败，降级为空列表：{}", userId, e.getMessage());
+            return Collections.emptyList();
+        }
     }
 }

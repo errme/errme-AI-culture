@@ -1,7 +1,7 @@
 package com.culture.auth.dto;
 
-import javax.validation.constraints.Email;
-import javax.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 
 /** 登录请求体 */
 public class LoginRequest {

@@ -2,24 +2,18 @@ package com.culture.api;
 
 import com.culture.auth.service.JwtService;
 import com.culture.auth.service.JwtService.Scope;
-import com.culture.config.UserSecurity;
 import com.culture.entity.User;
 import com.culture.service.UserService;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import javax.servlet.FilterChain;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Collections;
 
@@ -49,13 +43,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserService userService;
-    private final UserDetailsService userDetailsService;
 
-    public JwtAuthFilter(JwtService jwtService, UserService userService,
-                         UserDetailsService userDetailsService) {
+    public JwtAuthFilter(JwtService jwtService, UserService userService) {
         this.jwtService = jwtService;
         this.userService = userService;
-        this.userDetailsService = userDetailsService;
     }
 
     @Override
@@ -113,13 +104,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 && (user.getStatus() == null || user.getStatus() == 1);
     }
 
-    /** 是否为后台 Session 管理员 */
-    private boolean isAdminSession(Authentication auth) {
-        return auth != null && auth.isAuthenticated()
-                && auth.getPrincipal() instanceof UserSecurity
-                && auth.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_" + ROLE_ADMIN_NAME));
-    }
-
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
@@ -147,24 +131,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             }
         }
 
-        // ===== 2) Session 兜底（后台表单/Session 登录、前台登录桥接）=====
-        Authentication sessionAuth = SecurityContextHolder.getContext().getAuthentication();
-        boolean adminSession = isAdminSession(sessionAuth);
-        if (bearerScope == null && adminSession) {
-            UserSecurity us = (UserSecurity) sessionAuth.getPrincipal();
-            request.setAttribute(ATTR_LOGIN_USER_ID, us.getLoginUser().getId());
-            request.setAttribute(ATTR_TOKEN_SCOPE, "admin");
-        }
-        HttpSession session = request.getSession(false);
-        boolean sessionLogin = adminSession || (session != null && session.getAttribute("loginUserId") != null);
-
-        // ===== 3) 按路径鉴权 =====
+        // ===== 2) 按路径鉴权（纯 Token，无 Session 兜底）=====
+        // 说明：此处原先还有一段「Session 兜底」——把后台登录写入的 Spring Security
+        // 会话当作登录态。改用纯 Token 后服务端不再创建会话（见 WebSecurityConfig 的
+        // SessionCreationPolicy.STATELESS），因此这段逻辑已整体移除。
         if (isAdminApi(path)) {
-            if (bearerScope == Scope.ADMIN || adminSession) {
+            if (bearerScope == Scope.ADMIN) {
                 chain.doFilter(request, response);
                 return;
             }
-            if (bearerScope == Scope.FRONT || sessionLogin) {
+            if (bearerScope == Scope.FRONT) {
                 writeJson(response, HttpServletResponse.SC_FORBIDDEN,
                         "该账号无后台管理权限，请从后台登录入口登录");
                 return;
@@ -174,7 +150,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         if (isFrontApi(path)) {
-            if (bearerScope != null || sessionLogin) {
+            if (bearerScope != null) {
                 chain.doFilter(request, response);
                 return;
             }
@@ -182,7 +158,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (isProtectedApi(path) && bearerScope == null && !sessionLogin) {
+        if (isProtectedApi(path) && bearerScope == null) {
             writeJson(response, HttpServletResponse.SC_UNAUTHORIZED, "未登录或凭证无效");
             return;
         }
@@ -213,33 +189,39 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
     }
 
-    /** 把令牌身份写入请求属性 / Session / SecurityContext */
+    /**
+     * 把令牌身份写入请求属性与 SecurityContext（<b>不写 Session</b>）。
+     *
+     * <p>SecurityContext 仍然要写：Spring Security 的
+     * {@code anyRequest().authenticated()} 与后续可能的
+     * {@code @PreAuthorize} 都依赖它。</p>
+     *
+     * <p>相较升级前的两处简化：</p>
+     * <ol>
+     *   <li>不再创建 HttpSession（原实现每个带 Token 的请求都会建一个会话，
+     *       「无状态 JWT」名不副实）；</li>
+     *   <li>后台令牌不再调用 {@code userDetailsService.loadUserByUsername()}。
+     *       那一步会额外发出「用户 + 角色 + 权限」三条 SQL，而项目里
+     *       <b>没有任何 @PreAuthorize</b> 用到这些细粒度权限 —— 真正的后台鉴权
+     *       由本过滤器的作用域判断与各控制器自己的 {@code isAdmin()} 完成。
+     *       去掉后每个后台请求少 3 条无关查询。</li>
+     * </ol>
+     */
     private void applyAuthentication(HttpServletRequest request, User user, Scope scope) {
         request.setAttribute(ATTR_LOGIN_USER_ID, user.getId());
         request.setAttribute(ATTR_TOKEN_SCOPE, scope.value());
 
-        HttpSession session = request.getSession(true);
-        // Session 桥接：让原始 Thymeleaf 前台页面（个人中心/收藏/发布）能读到登录人
-        session.setAttribute("loginUserName", user.getUsername());
-        session.setAttribute("loginUserId", user.getId());
+        // 作用域 -> 角色：后台令牌只得 ROLE_ADMIN，前台令牌只得 ROLE_FRONT_USER。
+        // 两者由不同密钥签发，前台令牌无法伪造出后台作用域。
+        String role = scope == Scope.ADMIN ? ROLE_ADMIN_NAME : "FRONT_USER";
 
-        if (scope == Scope.ADMIN) {
-            // 后台令牌：加载角色/权限，写入完整认证并持久化到 Session（后台 Thymeleaf 页面依赖 Session）
-            UserDetails ud = userDetailsService.loadUserByUsername(user.getUsername());
-            UsernamePasswordAuthenticationToken auth =
-                    new UsernamePasswordAuthenticationToken(ud, null, ud.getAuthorities());
-            SecurityContextHolder.getContext().setAuthentication(auth);
-            session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
-                    SecurityContextHolder.getContext());
-            session.setAttribute("tokenScope", Scope.ADMIN.value());
-        } else {
-            // 前台令牌：仅最小权限，绝不携带管理员角色（后台权限只认后台令牌/后台 Session）
-            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                    "front:" + user.getId(), null,
-                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_FRONT_USER")));
-            SecurityContextHolder.getContext().setAuthentication(auth);
-            session.setAttribute("tokenScope", Scope.FRONT.value());
-        }
+        // principal 直接放已加载的 User 实体（而不是把 id 拼成字符串）：
+        // 业务层通过 CommonUtil.getLoginUser() 取当前登录人，它按 principal 类型解析。
+        // 用实体承载可以避免为了取一个 id 再去查一次库。
+        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                user, null,
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role)));
+        SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
     private void writeJson(HttpServletResponse response, int status, String message) throws IOException {

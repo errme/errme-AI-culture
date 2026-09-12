@@ -48,29 +48,36 @@ spring:
     # 慢 SQL 日志：stat 过滤器记录执行超过 1 秒的语句（排查慢查询用，不影响功能）
     connectionProperties: druid.stat.mergeSql=true;druid.stat.slowSqlMillis=1000;druid.stat.logSlowSql=true
 
-  # Redis：auth 模块验证码存储 / 60 秒重发限频（本地默认 123456）
-  redis:
-    host: 127.0.0.1
-    port: 6379
-    password: "123456"
-    timeout: 3s
+  # Redis：auth 模块验证码存储 / 60 秒重发限频 / 前台公共列表缓存（本地默认 123456）
+  # 注意：Spring Boot 3.0 起 spring.redis.* 已迁移为 spring.data.redis.*，
+  # 旧键会被静默忽略 —— 那样密码不会被应用，连接一个 requirepass 的 Redis 会直接失败。
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password: "123456"
+      timeout: 3s
 
-  thymeleaf:
-    prefix: classpath:/templates/
-    suffix: .html
-    encoding: utf-8
-    mode: HTML
-    cache: false
+  # 说明：原先这里还有 spring.thymeleaf.*（prefix/suffix/mode/cache）。
+  # 页面已全部迁到 Vue，spring-boot-starter-thymeleaf 依赖也已删除，
+  # 这些配置不再有任何作用，随依赖一并移除。
 
   mvc:
-    static-path-pattern: /static/**/
+    # Spring Boot 3 用的是 PathPatternParser，它**不接受**原来的 "/static/**/"：
+    # `**` 之后不允许再有内容，启动时直接报
+    #   Invalid mapping pattern detected: /static/**/  ^ No more pattern data allowed after {*...} or ** pattern element
+    # 改为合法写法 /static/**（语义不变：仍是「/static 下的所有静态资源」）。
+    static-path-pattern: /static/**
     servlet:
       load-on-startup: 100
 
-  resources:
-    # 静态资源不缓存，避免浏览器使用旧的登录/注册 JS（生产可去掉或改为长缓存）
-    cache:
-      period: 0
+  # 注意：Spring Boot 2.4 起 spring.resources.* 已迁到 spring.web.resources.*，
+  # 旧键在 3.x 下不再生效（原来写的 spring.resources.cache.period 等于没配）。
+  web:
+    resources:
+      # 静态资源不缓存，避免浏览器使用旧的登录/注册 JS（生产可改为长缓存）
+      cache:
+        period: 0
 
 # ============ 上传目录（运行时数据，均位于项目根的 upload/ 下）============
 # 目录结构整理后统一收敛到 upload/：avatar（头像）、culture（文化封面）、media（富文本正文媒体）

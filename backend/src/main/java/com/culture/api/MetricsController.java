@@ -63,7 +63,7 @@ public class MetricsController {
      * （ignoreAcceptHeader=true），声明 produces 会直接 406。这里改为显式设置响应头（与 SeoController 同一套路）。
      */
     @GetMapping("/metrics")
-    public void metrics(javax.servlet.http.HttpServletResponse response) throws java.io.IOException {
+    public void metrics(jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
         response.setContentType("text/plain;charset=UTF-8");
         response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         response.getWriter().write(build());

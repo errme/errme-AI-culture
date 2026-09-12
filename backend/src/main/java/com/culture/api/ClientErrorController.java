@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -97,7 +97,7 @@ public class ClientErrorController {
     /** 最近的前端错误（管理员）：GET /api/admin/client-errors?limit=50 */
     @org.springframework.web.bind.annotation.GetMapping("/admin/client-errors")
     public Map<String, Object> recent(@org.springframework.web.bind.annotation.RequestParam(value = "limit", required = false) Integer limit,
-                                      javax.servlet.http.HttpServletRequest request) {
+                                      jakarta.servlet.http.HttpServletRequest request) {
         Long userId = currentUserId(request);
         if (!isAdmin(userId)) return err(403, "无权限");
         int size = (limit == null || limit < 1) ? 50 : Math.min(limit, MAX_STORED);
@@ -123,7 +123,7 @@ public class ClientErrorController {
         return res;
     }
 
-    private Long currentUserId(javax.servlet.http.HttpServletRequest request) {
+    private Long currentUserId(jakarta.servlet.http.HttpServletRequest request) {
         Object v = request.getAttribute(com.culture.api.JwtAuthFilter.ATTR_LOGIN_USER_ID);
         if (v instanceof Long) return (Long) v;
         if (v == null) return null;

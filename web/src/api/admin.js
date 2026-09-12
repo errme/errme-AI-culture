@@ -38,6 +38,16 @@ export const userSave = data => adminHttp.post('/admin/user/save', data)
 export const userDelete = id => adminHttp.post('/admin/user/delete', { id })
 export const userRoleSave = data => adminHttp.post('/admin/user/role', data)
 export const userRoles = userId => adminHttp.get('/admin/user/roles', { params: { userId } })
+/**
+ * 导出用户 Excel。
+ *
+ * 路径由 `/user/downloadExcel` 迁到 `/api/admin/user/export`：
+ * 旧路径不在 /api 前缀下，绕过了 JwtAuthFilter 的路径鉴权，任何前台登录用户都能下载全站用户表。
+ * 现在纳入 /api/admin/** 统一鉴权，并且必须带 Token ——
+ * 因此不能再像以前那样用 `window.location.href` 直接跳转（跳转带不上 Authorization 头），
+ * 改为与「文化 CSV 导出」一致的 blob 下载。
+ */
+export const userExport = () => adminHttp.get('/admin/user/export', { responseType: 'blob' })
 
 /* ============ 邮件设置 ============ */
 export const mailConfig = () => adminHttp.get('/admin/mail/config')

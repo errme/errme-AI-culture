@@ -16,7 +16,12 @@
 
 ## 快速启动
 
-前置：本机 MySQL 5.7+（root/123456）、Redis（6379/123456）、Node 18+、JDK 8+（本机实测 JDK 17）、Maven。
+前置：本机 MySQL 5.7+（root/123456）、Redis（6379/123456）、Node 18+、**JDK 17+**。
+**不需要单独安装 Maven** —— `backend/mvnw` 自带 Maven Wrapper（锁定 3.9.16），
+Spring Boot 3 要求 Maven ≥ 3.6.3，用 wrapper 可避免本机版本过旧导致的构建失败。
+
+> 后端已升级到 **Spring Boot 3.4.3**（Servlet 6 / jakarta 命名空间 / Spring Security 6）。
+> 升级中的全部破坏性变更与踩坑点见 [`docs/SpringBoot3升级说明.md`](docs/SpringBoot3升级说明.md)。
 
 ```bash
 ./start.sh            # MySQL + Redis + 后端(8081) + 前端预览服(8080)

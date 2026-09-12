@@ -303,6 +303,30 @@ public interface CultureMapper {
                     "</script>"})
     List<Culture> findAllByIds(@Param("Ids") List<Long> itemIds);
 
+    /**
+     * 前台详情页「猜你喜欢」——基于用户的协同过滤，<b>纯 SQL 实现</b>
+     * （替代原先的 Apache Mahout：其 0.9 版依赖 hadoop-core 1.2.1 且基于 javax，
+     *   与 Spring Boot 3 无法共存；而 biz_like 只有几百行数据，也没必要引入机器学习框架）。
+     *
+     * <p>语义与原 Mahout 实现保持一致：</p>
+     * <ol>
+     *   <li>找出「与当前用户有共同收藏」的其它用户（l1 与自己、l2 与其它人的交集）；</li>
+     *   <li>从这些相似用户的收藏里，挑出当前用户<b>还没有收藏过</b>的内容
+     *       （not exists 排除已收藏，等价于协同过滤的「排除已交互物品」）；</li>
+     *   <li>按「多少位相似用户都收藏了它」优先，其次按偏好值之和排序
+     *       （对应原 NearestNUserNeighborhood + CityBlock 相似度的推荐排序意图）；</li>
+     *   <li>只返回已发布（status=1）且未逻辑删除的内容。</li>
+     * </ol>
+     *
+     * <p>与旧实现的行为差异：旧实现传入的是邻居数量 howMany，这里 howMany 直接作为
+     * 推荐结果条数上限（上层 CultureServiceImpl 本就按条数使用）。冷启动用户
+     * （没有任何收藏）会得到空列表，由上层用「热门内容」兜底，与原逻辑一致。</p>
+     *
+     * @param userId  当前登录用户 id
+     * @param howMany 最多返回多少条
+     */
+    List<Culture> findRecommendByUser(@Param("userId") Long userId, @Param("howMany") int howMany);
+
     // ===================== SEO 专用查询（SQL 见 CultureMapper.xml 的 SeoCultureMap） =====================
     // 这三个方法只给 SeoController 用：会额外带出 updated_at（映射到 Culture.updateTime），
     // 而 COLS 里刻意不含 updated_at，所以既有接口的响应不会多出字段。

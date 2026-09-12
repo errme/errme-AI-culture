@@ -34,10 +34,13 @@ jobs:
 
       - name: 后端构建 + 零依赖自测
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq default-jdk maven
+          # 只需要 JDK；Maven 由项目自带的 wrapper 提供，
+          # 保证本地与 CI 用的是同一个 Maven 版本
+          # （Spring Boot 3 要求 Maven >= 3.6.3，系统源里的 maven 版本不可控）。
+          sudo apt-get update -qq && sudo apt-get install -y -qq default-jdk
           cd backend
-          mvn -q -DskipTests package
-          mvn -q -DskipTests compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt
+          ./mvnw -q -DskipTests clean package
+          ./mvnw -q -DskipTests compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt
           javac -encoding UTF-8 -d target/test-classes -cp "target/classes:$(cat target/cp.txt)" src/test/java/com/culture/SelfTest.java
           java -Dfile.encoding=UTF-8 -cp "target/classes:target/test-classes:$(cat target/cp.txt)" com.culture.SelfTest
 

@@ -274,7 +274,21 @@ public class CultureServiceImpl implements CultureService {
         cultureMapper.updateViewNum(id);
     }
 
-    //获取用户推荐culture（带 10 分钟缓存）
+    /**
+     * 获取用户推荐内容（带 10 分钟进程内缓存）。
+     *
+     * <p><b>⚠ 当前没有任何调用方（死代码）：</b>全仓库搜索 {@code getUserTjCulture} 只有
+     * 接口声明与本实现，前台详情页的「猜你喜欢」实际走的是
+     * {@link #findRecommendCultures}（同分类优先 + 热门兜底，
+     * 调用点见 {@code ApiHomeController}）。</p>
+     *
+     * <p>也就是说：原先那套 Apache Mahout 协同过滤<b>从来没有真正对外生效过</b>，
+     * 移除 Mahout 对线上行为零影响。此方法连同
+     * {@link RecommendService} 的 SQL 实现一并保留并修正，
+     * 供将来真要启用「基于行为的个性化推荐」时直接使用；
+     * 若要启用，注意本方法的缓存是进程内的（多实例不一致），
+     * 且返回的是缓存内部 List（调用方不应修改）。</p>
+     */
     @Override
     public List<Culture> getUserTjCulture(String username, Long cultureId) {
         User user = userMapper.findUserByUserName(username);
@@ -471,7 +485,11 @@ public class CultureServiceImpl implements CultureService {
         }
         List<Culture> topCultures = cultureMapper.findTop4Culture();
         for (Culture culture : topCultures) {
-            if (isExistCulture(tjList, culture.getId()) && tjList.size() < 4 && culture.getId() != cultureId) {
+            // 必须用 Objects.equals 而不是 != ：
+            // Long 是包装类型，`!=` 比较的是引用。自增主键超过 127 后不再命中 Long 缓存，
+            // `culture.getId() != cultureId` 会恒为 true —— 当前文章会被推荐给它自己。
+            if (isExistCulture(tjList, culture.getId()) && tjList.size() < 4
+                    && !java.util.Objects.equals(culture.getId(), cultureId)) {
                 tjList.add(culture);
             }
         }
@@ -481,7 +499,9 @@ public class CultureServiceImpl implements CultureService {
     //是否重复：true=列表中不存在该 id（可用于补足去重）
     public static boolean isExistCulture(List<Culture> cultures, Long bid) {
         for (Culture culture : cultures) {
-            if (culture.getId() == bid) {
+            // 同样的问题：`==` 对超过 127 的 Long 恒为 false，
+            // 会让去重失效、推荐位出现重复条目。
+            if (java.util.Objects.equals(culture.getId(), bid)) {
                 return false;
             }
         }

@@ -74,8 +74,14 @@ public class SentenceServiceImpl implements SentenceService {
 
     @Override
     public void addSentence(Sentence sentence) {
-        sentence.setCreateId(CommonUtil.getLoginUser().getId());
-        Long uid = CommonUtil.getLoginUser().getId();
+        // 原先这里连续两次调用 CommonUtil.getLoginUser().getId()，一旦拿不到登录人
+        // （未登录，或 principal 类型不被识别）就直接 NPE，而上层把异常吞成「保存失败」，
+        // 排查成本很高。这里改为只取一次并显式判空。
+        Long uid = CommonUtil.getLoginUserId();
+        if (uid == null) {
+            throw new BusinessException("登录状态已失效，请重新登录后再试");
+        }
+        sentence.setCreateId(uid);
         sentence.setCreateTime(new Date());
         sentence.setCreateName(userMapper.findUserById(uid));
         sentence.setCreateImg(userMapper.findUserByImg(uid));

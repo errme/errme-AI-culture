@@ -115,6 +115,55 @@
 	</resultMap>
 
 	<!--
+	  前台详情页「猜你喜欢」——基于用户的协同过滤，纯 SQL 实现。
+
+	  背景：原实现用 Apache Mahout 0.9（UserSimilarity + NearestNUserNeighborhood +
+	  GenericUserBasedRecommender）。Mahout 0.9 依赖 hadoop-core 1.2.1 且基于 javax，
+	  无法与 Spring Boot 3（jakarta）共存；而 biz_like 实际只有数百行数据，
+	  引入整套机器学习框架属于严重过度设计，故改为下面这段 SQL。
+
+	  语义与原实现对齐：
+	    1) l1 = 当前用户的收藏；l2 = 其它用户的收藏。
+	       两表按「target_id 不同」相连 → 得到「和我有共同收藏、且收藏了我没收藏的内容」的候选；
+	    2) not exists 排除当前用户已收藏的 target（协同过滤必须排除已交互物品）；
+	    3) supporters（多少位相似用户收藏了它）优先，其次 score（偏好值之和），
+	       对应原 CityBlock 相似度 + 最近邻的推荐排序意图；
+	    4) 只返回已发布且未逻辑删除的内容；left join 而非 inner join，
+	       避免分类被删（category_id 置 null）时整条推荐消失。
+
+	  调用方：CultureServiceImpl#getRecommendList（前台，带 10 分钟缓存兜底）。
+	-->
+	<select id="findRecommendByUser" resultMap="CultureMap">
+		select u.id, u.name, u.address, u.description,
+		       LEFT(u.content, 300) infoSummary,
+		       u.cover_url, u.category_id, u.creator_id, u.view_count, u.like_count, u.created_at,
+		       s.id sid, s.username, c.id cid, c.name categoryName
+		from (
+			select l2.target_id as tid,
+			       count(distinct l2.user_id) as supporters,
+			       sum(l2.value) as score
+			from biz_like l1
+			join biz_like l2
+			  on l2.target_id &lt;&gt; l1.target_id
+			 and l2.user_id &lt;&gt; l1.user_id
+			where l1.user_id = #{userId}
+			  and not exists (
+			      select 1 from biz_like l3
+			      where l3.user_id = #{userId}
+			        and l3.target_id = l2.target_id
+			  )
+			group by l2.target_id
+			order by supporters desc, score desc
+			limit #{howMany}
+		) r
+		join biz_culture u on u.id = r.tid
+		left join sys_user s on u.creator_id = s.id
+		left join biz_category c on u.category_id = c.id
+		where u.deleted = 0 and u.status = 1
+		order by r.supporters desc, r.score desc
+	</select>
+
+	<!--
 	  后台专用分页列表（增量：草稿箱体验「后台列表看不到发布状态」）
 	  与上面 queryData 的差异只有一处：列清单末尾额外取 u.status, u.publish_at,
 	  u.is_top, u.recommend_sort，映射到 Culture.status / Culture.publishAt /

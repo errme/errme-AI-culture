@@ -37,14 +37,18 @@ stop_backend_if_running() {
   fi
 }
 stop_backend_if_running
-(cd backend && mvn -q -DskipTests package)
+# 用项目自带的 Maven Wrapper 而不是 PATH 上的 mvn：
+# Spring Boot 3 要求 Maven >= 3.6.3，而本机 PATH 上装的可能是更旧的版本
+# （本项目开发机上就是 3.6.1，直接用 mvn 会报
+#  "The plugin maven-clean-plugin:3.4.1 requires Maven version 3.6.3"）。
+(cd backend && ./mvnw -q -DskipTests clean package)
 
 echo
 echo "===== 3/4 后端零依赖自测（离线环境没有 JUnit，用 main + 断言）====="
 # SelfTest 依赖 Spring/MyBatis/JJWT 等类，类路径由 Maven 生成（离线也可用，依赖已在本地仓库）
 SEP=";"
 case "$(uname -s)" in Linux|Darwin) SEP=":" ;; esac
-(cd backend   && mvn -q -DskipTests compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt   && javac -encoding UTF-8 -d target/test-classes -cp "target/classes${SEP}$(cat target/cp.txt)" src/test/java/com/culture/SelfTest.java   && java -Dfile.encoding=UTF-8 -cp "target/classes${SEP}target/test-classes${SEP}$(cat target/cp.txt)" com.culture.SelfTest)
+(cd backend   && ./mvnw -q -DskipTests compile dependency:build-classpath -Dmdep.outputFile=target/cp.txt   && javac -encoding UTF-8 -d target/test-classes -cp "target/classes${SEP}$(cat target/cp.txt)" src/test/java/com/culture/SelfTest.java   && java -Dfile.encoding=UTF-8 -cp "target/classes${SEP}target/test-classes${SEP}$(cat target/cp.txt)" com.culture.SelfTest)
 
 echo
 echo "===== 4/4 入口 HTML 检查 + 前端单元测试 + 端到端回归 ====="

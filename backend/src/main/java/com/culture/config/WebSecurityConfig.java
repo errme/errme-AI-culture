@@ -1,122 +1,132 @@
 package com.culture.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
+import com.culture.api.JwtAuthFilter;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import com.culture.api.JwtAuthFilter;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
+/**
+ * Spring Security 配置（Spring Boot 3 / Spring Security 6）。
+ *
+ * <p><b>本次升级的关键改写：</b>Security 6 已<b>删除</b>
+ * {@code WebSecurityConfigurerAdapter}，配置方式从「继承并覆写 configure()」
+ * 改为「声明 {@link SecurityFilterChain} Bean」。同时：</p>
+ * <ul>
+ *   <li>{@code antMatchers} → {@code requestMatchers}；</li>
+ *   <li>{@code @EnableGlobalMethodSecurity} → 已移除。项目里<b>没有任何</b>
+ *       {@code @PreAuthorize} / {@code @Secured}，开启细粒度方法级授权属于无效配置
+ *       （真正的后台鉴权由 {@link JwtAuthFilter} 的作用域判断 + 各控制器
+ *       自行调用 {@code isAdmin()} 完成）；</li>
+ *   <li>{@code AuthenticationManagerBuilder} 配置块已移除：登录由
+ *       {@code AuthService.login()} 自行校验密码，不经过 DaoAuthenticationProvider；</li>
+ *   <li>开启 {@link SessionCreationPolicy#STATELESS}：这是「纯 Token 无状态」的落地，
+ *       配合认证接口不再写 Session，服务端不会再为每个请求创建会话。</li>
+ * </ul>
+ *
+ * <p><b>可以继续禁用 CSRF 的原因：</b>改造后服务端不再使用任何 Cookie 会话
+ * （没有 Session、没有表单登录），浏览器的跨站请求带不上 Authorization 头，
+ * CSRF 攻击面消失。此前「禁用 CSRF + 同时使用 Cookie 会话」才是自相矛盾的。</p>
+ *
+ * <p><b>本次同时收紧了公开路径：</b>Druid 监控页（{@code /druid/**}）与
+ * Swagger（{@code /swagger-ui.html}、{@code /v2/api-docs}、{@code /swagger-resources}）
+ * 的依赖已删除，对应的 permitAll 条目一并移除，不再对外暴露。
+ * 也正因为不再需要 Druid 页面，原先为了让它正常显示而全局关闭的
+ * {@code X-Content-Type-Options: nosniff} 已恢复为 Spring Security 的默认开启状态。</p>
+ */
 @Configuration
-@EnableWebSecurity //拦截所有请求 AOP拦截器
-@EnableGlobalMethodSecurity(prePostEnabled = true)//开启细粒度控制 判断用户对某个控制层的方法是否具有访问权限 @PreAuthorize
-public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+@EnableWebSecurity
+public class WebSecurityConfig {
 
-    @Qualifier("userDetailsServiceImpl")
-    @Autowired
-    UserDetailsService userDetailsService;
+    /**
+     * 无需登录即可访问的路径。
+     *
+     * <p>注意 {@code /api/search} 与 {@code /api/search/hot} 的写法差异：
+     * 不能写成 {@code /api/search/**} —— 那会让需要登录的 {@code /api/search/history}
+     * 变成匿名可达。</p>
+     */
+    private static final String[] PUBLIC_PATHS = {
+            // ---- 前端设计资源与媒体（/index、/static 已由 Nginx 托管，此处仅为本地预览兜底）----
+            "/static/**", "/index/**",
+            "/upload/media/**",            // 富文本正文图片/视频
+            "/showFmImg/**", "/showimage/**",
+            // ---- SEO：站点地图 / 爬虫规则 / RSS（爬虫无登录态）----
+            "/sitemap.xml", "/robots.txt", "/rss.xml",
+            "/sitemap-static.xml", "/sitemap-culture-*.xml",
+            // ---- 公开 API 与认证 API ----
+            "/api/auth/**",
+            "/api/home/**",
+            "/api/culture/list",
+            "/api/culture/detail",
+            "/api/culture/categorys",
+            "/api/sentence/list",
+            "/api/search",
+            "/api/search/hot",
+            "/api/tag/list",
+            "/api/tag/cultures",
+            "/api/seo/**",
+            "/api/comment/list",
+            "/api/health",
+            "/api/metrics",
+            "/api/client-error"
+    };
 
-    @Autowired
-    JwtAuthFilter jwtAuthFilter;
+    private final JwtAuthFilter jwtAuthFilter;
 
+    public WebSecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
 
-    //授权
-    //配置拦截资源 首页所有人可以访问 功能页只有对应有权限的人才能访问 链式编程
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-
-        // 前后端分离：/api/** 先走 JWT 过滤器（校验通过后写入 SecurityContext 并桥接 Session）
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        // /api/** 先走 JWT 过滤器：校验通过后写入 SecurityContext（不再桥接 Session）
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
-        //====================================================================
-        // 请求规则（前后端分离：后端只提供 REST API 与后端托管的静态资源）
-        //   - 公开：公开 API、认证 API、Swagger、Druid、设计资源、上传媒体
-        //   - 其余一律要求已认证（/api/** 由 JwtAuthFilter 用前后台双 Token 鉴权）
-        //====================================================================
-        http.authorizeRequests()
-                .antMatchers(
-                        // ---- 文档与监控 ----
-                        "/swagger-ui.html", "/swagger-ui.html/**", "/swagger-ui.html/*",
-                        "/swagger-resources", "/swagger-resources/**",
-                        "/webjars/**", "/webjars/springfox-swagger-ui/**",
-                        "/v2/api-docs", "/META-INF/resources/webjars/**",
-                        "/druid", "/druid/**", "/druid/*", "/druid/login.html",
-                        // ---- 前端设计资源与媒体（由 Nginx 反代到本服务）----
-                        "/static/**", "/index/**",
-                        "/upload/media/**",            // 富文本正文图片/视频
-                        "/showFmImg/**", "/showimage/**",
-                        // ---- SEO：站点地图 / 爬虫规则 / RSS（爬虫无登录态，必须放行）----
-                        "/sitemap.xml", "/robots.txt", "/rss.xml",
-                        // sitemap 分片（规范路径形式）；索引默认用 ?shard= 查询形式，
-                        // 补上这两条后把 app.site.sitemap.shard-url-mode 设为 path 即可切换
-                        "/sitemap-static.xml", "/sitemap-culture-*.xml",
-                        // ---- 公开 API 与认证 API ----
-                        "/api/auth/**",
-                        "/api/home/**",
-                        "/api/culture/list",
-                        "/api/culture/detail",
-                        "/api/culture/categorys",
-                        "/api/sentence/list",
-                        "/api/search",                 // 全站搜索（前台公开，无需登录）
-                        // 热门搜索词也公开；注意**不要**写成 /api/search/** ——
-                        // 那会让 /api/search/history（需登录）变成匿名可达，丢掉 401 保护
-                        "/api/search/hot",
-                        "/api/tag/list",               // 标签列表（前台公开）
-                        "/api/tag/cultures",           // 某标签下的文化分页（前台公开）
-                        "/api/seo/**",                 // 页面 meta（OG/JSON-LD，爬虫与预渲染工具要读）
-                        "/api/comment/list",           // 评论列表（公开只读，仅返回已通过）；提交需登录
-                        "/api/health",                 // 健康检查（探针用）
-                        "/api/metrics",                // Prometheus 指标（监控抓取）
-                        "/api/client-error")           // 前端错误上报（匿名）
-                .permitAll()
-                .anyRequest().authenticated();
+        http.authorizeHttpRequests(auth -> auth
+                .requestMatchers(PUBLIC_PATHS).permitAll()
+                .anyRequest().authenticated());
 
-        // 说明：管理端登录页已迁到 Vue（/admin/login），不再使用 Spring 表单登录；
-        // 后台登录接口会写入 Spring Security 会话，供 Excel 导出等浏览器直接下载的
-        // 后端端点使用（其余接口一律走前后台 Token）。
-        http.csrf().disable();
-        http.headers()
-                // 关闭 X-Content-Type-Options:nosniff ，使 Druid 页面可以正常显示
-                .contentTypeOptions().disable();
+        // 纯 Token 无状态：不创建也不使用 HttpSession
+        http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
+        // 无 Cookie 会话 → CSRF 无攻击面；同时关掉表单登录/HTTP Basic/默认登出页
+        http.csrf(AbstractHttpConfigurer::disable);
+        http.formLogin(AbstractHttpConfigurer::disable);
+        http.httpBasic(AbstractHttpConfigurer::disable);
+        http.logout(AbstractHttpConfigurer::disable);
 
         // 未认证 / 无权限统一返回 JSON（前端按 401 清理 Token 并跳登录页）
-        http.exceptionHandling()
+        http.exceptionHandling(e -> e
                 .authenticationEntryPoint((req, resp, ex) -> writeJson(resp, 401, "未登录或凭证无效"))
-                .accessDeniedHandler((req, resp, ex) -> writeJson(resp, 403, "无权限访问该资源"));
+                .accessDeniedHandler((req, resp, ex) -> writeJson(resp, 403, "无权限访问该资源")));
+
+        return http.build();
     }
 
-    /** 统一的 JSON 错误输出 */
-    private void writeJson(HttpServletResponse response, int status, String message) throws IOException {
+    /**
+     * 统一的 JSON 错误输出。
+     *
+     * <p>用 {@link com.fasterxml.jackson.databind.ObjectMapper} 序列化而不是手工拼字符串：
+     * 拼接方式在 message 含引号/换行/反斜杠时会产出非法 JSON
+     * （当前文案是常量所以暂时不会出问题，但这是一条随时会被踩中的注入式缺陷）。</p>
+     */
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private static void writeJson(HttpServletResponse response, int status, String message) throws IOException {
         response.setStatus(status);
         response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write("{\"code\":" + status + ",\"message\":\"" + message + "\",\"data\":null}");
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("code", status);
+        body.put("message", message);
+        body.put("data", null);
+        MAPPER.writeValue(response.getWriter(), body);
     }
-
-    //认证
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.userDetailsService(userDetailsService).passwordEncoder(new BCryptPasswordEncoder());
-    }
-
-//    $2a$10$YITYi7HjqT2gh8jEF6eyquR/Og0qmYBNT8cQLaEjjS92jcZHwsI9G
-//    $2a BCrypt算法版本  $10 算法强度  $YITYi7HjqT2gh8jEF6eyquR 随机生成盐  Og0qmYBNT8cQLaEjjS92jcZHwsI9G hash值
-//    public static void main(String[] args) {
-//        BCryptPasswordEncoder bCryptPasswordEncoder = new BCryptPasswordEncoder();
-//        String encode = bCryptPasswordEncoder.encode("123");
-//        System.out.println(encode);
-//    }
-
 }
-

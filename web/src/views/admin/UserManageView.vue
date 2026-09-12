@@ -378,14 +378,17 @@
  *    且仅作用于当前页（表头 title 已注明）。
  * 6) 原模板 add 分支里的 alert("init ok") 与 $("#userAddForm").serializeObject() 调试/旧依赖已去掉；
  *    新增成功后（未选头像时）关闭弹窗并刷新。
- * 7) 导出按钮保留原行为 location.href = '/user/downloadExcel'（后台登录已建立 Session）。
+ * 7) 导出改为带 Token 的 blob 下载（原先是 location.href = '/user/downloadExcel'，
+ *    依赖已移除的 Session 桥接；且旧路径缺少管理员校验，任何前台用户都能下载全站用户表，
+ *    现路径为 /api/admin/user/export）。
  * 8) 表格内联 onclick 依赖全局 edit()/del()（与原模板一致），挂载时挂到 window，卸载时移除。
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminEmpty from '@/components/admin/AdminEmpty.vue'
-import { adminRoles, userDelete, userList, userRestore, userRoleSave, userRoles, userSave } from '@/api/admin'
+import { adminRoles, userDelete, userExport, userList, userRestore, userRoleSave, userRoles, userSave } from '@/api/admin'
 import { avatarUrl } from '@/utils/format'
+import { saveBlob, filenameFromHeaders } from '@/utils/download'
 import { toast as dsToast, confirmDelete } from '@/utils/notify'
 
 /* jQuery 由 admin.html 全局加载；这里在使用时取当前实例，避免加载顺序问题 */
@@ -683,9 +686,23 @@ function del(id) {
  * data-method 属性仍原样保留）
  * ------------------------------------------------------------- */
 const doMethod = {
-  exportData: function () {
-    // 后台登录已建立 Session，原 Thymeleaf 导出端点可直接使用
-    window.location.href = '/user/downloadExcel'
+  /**
+   * 导出用户 Excel。
+   * 必须走 blob 下载而不是 location.href：接口现在要求后台 Token，
+   * 浏览器直接跳转带不上 Authorization 头（会拿到 401/403 的 JSON 而不是文件）。
+   */
+  exportData: async function () {
+    try {
+      const res = await userExport()
+      // http 拦截器对 blob 请求不解包，返回完整响应（便于读 Content-Disposition）
+      const blob = res instanceof Blob ? res : (res && res.data)
+      if (!(blob instanceof Blob)) throw new Error('导出响应格式不正确')
+      const headers = (res && res.headers) || {}
+      saveBlob(blob, filenameFromHeaders(headers, '用户数据表.xls'))
+      if (!disposed) dsToast.success('导出已开始下载')
+    } catch (e) {
+      if (!disposed) dsToast.error((e && e.message) || '导出失败')
+    }
   },
   //条件用户角色弹框
   addUserRole: async function () {
