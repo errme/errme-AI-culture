@@ -100,6 +100,39 @@ editor:
 
 # ============ auth 模块配置（前后端分离 JWT + 验证码；前台/后台令牌分离） ============
 app:
+  # ============ 运维工具：Druid 监控页 / API 文档（均接入后台，全部可配置）============
+  druid:
+    stat:
+      # 是否注册 Druid 官方监控页。它暴露 SQL 统计等敏感信息，
+      # **生产环境建议关闭**，排查时临时用 DRUID_STAT_ENABLED=true 打开。
+      enabled: ${DRUID_STAT_ENABLED:true}
+      # 访问路径（可改，避免与业务路径冲突）
+      path: ${DRUID_STAT_PATH:/druid/*}
+      # 监控页账号；口令必须显式提供且 >= 8 位，否则启动失败（不设默认弱口令）
+      user: ${DRUID_STAT_USER:admin}
+      password: ${DRUID_STAT_PASSWORD:}
+      # 来源 IP 白名单（Druid 原生支持网段），默认只允许本机与内网
+      allow: ${DRUID_STAT_ALLOW:127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,::1}
+      # 是否允许在页面上重置统计数据（默认关闭）
+      reset-enable: ${DRUID_STAT_RESET:false}
+      # 是否开启 URI 监控（能看到哪些接口慢）
+      uri-monitor: ${DRUID_STAT_URI_MONITOR:true}
+      # URI 监控排除项（静态资源等噪音）
+      uri-exclusions: ${DRUID_STAT_URI_EXCLUSIONS:*.js,*.css,*.gif,*.jpg,*.jpeg,*.png,*.ico,*.woff,*.woff2,*.ttf}
+
+  # API 文档（springdoc-openapi / Swagger UI）
+  api-doc:
+    # 是否暴露 API 文档。生产环境建议关闭，或由 Nginx 限制为内网可访问。
+    enabled: ${API_DOC_ENABLED:true}
+    # Swagger UI 页面路径（可改）
+    ui-path: ${API_DOC_UI_PATH:/swagger-ui.html}
+    # OpenAPI JSON 路径（springdoc 默认值，可改）
+    api-docs-path: ${API_DOC_JSON_PATH:/v3/api-docs}
+    # 文档标题/描述（出现在 Swagger UI 顶部，可改）
+    title: ${API_DOC_TITLE:遇你 · culture REST API}
+    description: ${API_DOC_DESCRIPTION:传统文化站前后端分离接口文档（前台 + 后台）}
+    version: ${API_DOC_VERSION:2.0}
+
   site:
     # 站点对外访问地址（生成 sitemap/robots/rss/meta 的绝对 URL 用）；生产改为真实域名
     base-url: ${SITE_BASE_URL:http://localhost:8080}
@@ -155,3 +188,23 @@ mybatis:
   configuration:
     # 新库列名为 snake_case，开启驼峰映射（create_time -> createTime）
     map-underscore-to-camel-case: true
+
+# ============ API 文档（springdoc-openapi，替代原 springfox）============
+# 开关与路径统一由上面的 app.api-doc.* 控制，这里只是把它接到 springdoc 自己的配置键上，
+# 避免同一个开关要在两处各写一遍。标题/描述/版本在 ApiDocConfig 里读取同一个配置源。
+springdoc:
+  api-docs:
+    enabled: ${API_DOC_ENABLED:true}
+    path: ${API_DOC_JSON_PATH:/v3/api-docs}
+  swagger-ui:
+    enabled: ${API_DOC_ENABLED:true}
+    path: ${API_DOC_UI_PATH:/swagger-ui.html}
+    # 按接口路径字母序分组展示，便于在后台接口里快速定位
+    operations-sorter: alpha
+    tags-sorter: alpha
+    # 默认折叠，页面打开更快
+    doc-expansion: none
+    display-request-duration: true
+  # 只扫描本项目自己的控制器（含前台与后台 API），排除框架自带端点
+  packages-to-scan: com.culture
+  paths-to-match: /api/**, /file/**

@@ -112,6 +112,33 @@ server {
         add_header Cache-Control "public, max-age=600" always;
     }
 
+    # ==========================================================================
+    #  运维工具（后台左侧「运维工具」区会列出它们，路径以后端配置为准）
+    #
+    #  ⚠ 生产环境强烈建议：把下面这段「只允许内网访问」打开。
+    #     默认（注释状态）它们对公网可达 —— 因为后端的 permitAll 清单里包含这两条路径
+    #     （Druid 靠它自己的登录 + IP 白名单保护；API 文档默认是公开的）。
+    #     在 Nginx 这一层再收一道内网限制，是最省事也最稳妥的做法。
+    #
+    #  改过 app.druid.stat.path / app.api-doc.ui-path 时，这里的路径要同步改。
+    # ==========================================================================
+    # location ~ ^/(druid|swagger-ui|v3/api-docs) {
+    #     # 只允许本机与内网网段访问（按需调整）
+    #     allow 127.0.0.1;
+    #     allow 10.0.0.0/8;
+    #     allow 172.16.0.0/12;
+    #     allow 192.168.0.0/16;
+    #     deny all;
+    #
+    #     proxy_pass         http://127.0.0.1:8081;
+    #     proxy_http_version 1.1;
+    #     proxy_set_header   Host              $host;
+    #     proxy_set_header   X-Real-IP         $remote_addr;
+    #     proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    #     proxy_set_header   X-Forwarded-Proto $scheme;
+    #     access_log         off;
+    # }
+
     # ---- 老设计资源：静态直出（目录结构整理后不再反代后端）----
     #   /index/**        ← web/dist/index/**          （前台设计资源）
     #   /static/admin/** ← web/dist/static/admin/**   （后台设计资源）

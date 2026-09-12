@@ -39,6 +39,19 @@
         </div>
         <!-- 底部入口放在滚动区之外：侧边栏是 flex 纵向布局，滚动再长它也不会被挤走 -->
         <div class="ad-sidebar-foot">
+          <!--
+            运维工具：清单来自 GET /api/admin/devtools（后端按当前生效配置输出）。
+            刻意不在前端写死路径 —— 改了 app.druid.stat.path / app.api-doc.ui-path
+            之后菜单会自动跟随；被关闭的工具也不会出现在这里。
+          -->
+          <div v-if="tools.length" class="ad-devtools">
+            <div class="ad-devtools__title">运维工具</div>
+            <a v-for="t in tools" :key="t.key" :href="t.url"
+               :target="t.newTab ? '_blank' : '_self'" :rel="t.newTab ? 'noopener' : null"
+               :title="t.description">
+              <i :class="t.icon"></i> {{ t.name }}
+            </a>
+          </div>
           <a href="/" target="_blank" rel="noopener"><i class="mdi mdi-open-in-new"></i> 打开前台站点</a>
         </div>
       </aside>
@@ -84,7 +97,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { adminMenus, adminProfile } from '@/api/admin'
+import { adminMenus, adminProfile, devTools } from '@/api/admin'
 import { useAdminStore } from '@/stores/admin'
 import { avatarUrl } from '@/utils/format'
 import { loadScript, loadScriptFresh } from '@/utils/loadScript'
@@ -98,6 +111,22 @@ const route = useRoute()
 const router = useRouter()
 const adminStore = useAdminStore()
 const menus = ref([])
+
+/**
+ * 运维工具清单（Druid 监控 / API 文档 / 运行指标）。
+ * 由后端按当前生效配置返回，前端只渲染 —— 路径改了菜单自动跟随，不写死。
+ */
+const tools = ref([])
+
+/** 拉取运维工具清单：失败不影响后台主流程，只是不显示这一块 */
+async function loadDevTools() {
+  try {
+    const list = await devTools()
+    tools.value = Array.isArray(list) ? list : []
+  } catch (e) {
+    tools.value = []
+  }
+}
 
 /** 顶栏显示的当前页标题（来自路由 meta，避免用户不知道自己在哪一页） */
 const currentTitle = computed(() => (route.meta && route.meta.title) || '后台管理')
@@ -209,6 +238,8 @@ async function logout() {
 }
 
 onMounted(async () => {
+  // 运维工具清单独立加载：不 await，失败也不影响后台主流程
+  loadDevTools()
   // 主题脚本（侧边栏滚动条 + 折叠按钮）按 DOM 初始化，必须等 Vue 渲染完成
   await nextTick()
   try {
@@ -286,4 +317,34 @@ onBeforeUnmount(() => {
   font-size: 12.5px;
 }
 .ad-sidebar-foot a:hover { color: #fff; }
+
+/* 运维工具区（Druid 监控 / API 文档 / 运行指标） */
+.ad-devtools {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.12);
+}
+.ad-devtools__title {
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.42);
+  text-transform: uppercase;
+}
+.ad-devtools a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  margin-left: -8px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12.5px;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+.ad-devtools a:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.ad-devtools a i { font-size: 14px; }
 </style>

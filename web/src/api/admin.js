@@ -32,6 +32,11 @@ export const sentenceList = params => adminHttp.get('/admin/sentence/list', { pa
 export const sentenceSave = data => adminHttp.post('/admin/sentence/save', data)
 export const sentenceDelete = id => adminHttp.post('/admin/sentence/delete', { id })
 
+/* ============ 运维工具（Druid 监控 / API 文档 / 运行指标）============
+ * 清单由后端按**当前生效的配置**输出（路径可配置，前端不写死），
+ * 关闭的工具不会出现在返回结果里。详见后端 DevToolsController。 */
+export const devTools = () => adminHttp.get('/admin/devtools')
+
 /* ============ 用户管理 ============ */
 export const userList = params => adminHttp.get('/admin/user/list', { params })
 export const userSave = data => adminHttp.post('/admin/user/save', data)

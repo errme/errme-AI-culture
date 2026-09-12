@@ -256,7 +256,57 @@ async function main() {
       !!stillOk && /^3\.4\./.test(String(stillOk)), `jQuery=${stillOk}`)
   }
 
-  /* ---------------- 9. 收尾 ---------------- */
+  /* ---------------- 9. 运维工具（Druid / API 文档）已接入后台 ----------------
+   * 这两个工具的访问路径是**可配置**的（app.druid.stat.path / app.api-doc.ui-path），
+   * 因此清单由后端 GET /api/admin/devtools 按当前生效配置输出，前端只渲染、不写死。
+   * 这里同时验证「接口给出的清单」与「侧边栏实际渲染的链接」一致。
+   */
+  const dev = await api('GET', '/api/admin/devtools')
+  const devList = (dev.body && dev.body.data) || []
+  const druidTool = devList.find(t => t.key === 'druid')
+  const apiDocTool = devList.find(t => t.key === 'apidoc')
+  record('运维工具接口返回 Druid 与 API 文档入口（路径来自配置）',
+    !!druidTool && !!apiDocTool && druidTool.url.indexOf('/druid') === 0,
+    devList.map(t => `${t.key}=${t.url}`).join(' '))
+
+  // 逐个探活：Druid 会 302 到自己的登录页；Swagger UI 直接 200
+  if (druidTool) {
+    const dResp = await fetch(API + druidTool.url, { redirect: 'manual' })
+    record('Druid 监控页可访问（302 跳自己的登录页 = 已挂载成功）',
+      dResp.status === 302 || dResp.status === 200, `HTTP ${dResp.status} url=${druidTool.url}`)
+  }
+  if (apiDocTool) {
+    const sResp = await fetch(API + apiDocTool.url, { redirect: 'follow' })
+    record('Swagger UI 可访问', sResp.status === 200, `HTTP ${sResp.status} url=${apiDocTool.url}`)
+    const docResp = await fetch(API + '/v3/api-docs')
+    const doc = await docResp.json().catch(() => null)
+    const pathCount = doc && doc.paths ? Object.keys(doc.paths).length : 0
+    const schemes = doc && doc.components && doc.components.securitySchemes
+      ? Object.keys(doc.components.securitySchemes) : []
+    record('OpenAPI 文档可解析且含双 Token 鉴权方案',
+      docResp.status === 200 && pathCount > 50 && schemes.length >= 2,
+      `HTTP ${docResp.status} 接口数=${pathCount} 鉴权方案=${schemes.join('/')}`)
+  }
+
+  // 侧边栏实际渲染（前端不写死路径，完全来自上面的接口）
+  await goto(BASE + '/admin', 3500)
+  const rendered = await json(`(() => {
+    const box = document.querySelector('.ad-devtools')
+    if (!box) return { ok: false, reason: '侧边栏没有运维工具区' }
+    const links = [...box.querySelectorAll('a')].map(a => ({
+      href: a.getAttribute('href'),
+      text: (a.textContent || '').trim(),
+      target: a.getAttribute('target')
+    }))
+    return { ok: links.length > 0, links }
+  })()`)
+  const renderedHrefs = (rendered.links || []).map(l => l.href)
+  const matchesApi = !!druidTool && renderedHrefs.indexOf(druidTool.url) > -1
+  record('后台侧边栏渲染出运维工具（且与接口清单一致、新标签页打开）',
+    rendered.ok && matchesApi && (rendered.links || []).every(l => l.target === '_blank'),
+    rendered.ok ? rendered.links.map(l => `${l.text}→${l.href}`).join(' | ') : rendered.reason)
+
+  /* ---------------- 10. 收尾 ---------------- */
   for (const fn of cleanup.reverse()) { try { await fn() } catch (e) { /* 忽略 */ } }
   console.log('\n测试数据已清理')
   record('全程无控制台报错', errors.length === 0, errors.slice(0, 2).join(' ; ').slice(0, 200))

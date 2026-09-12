@@ -124,15 +124,29 @@
             <scope>runtime</scope>
         </dependency>
         <!--
-          Druid 连接池：只使用连接池与 stat/wall 过滤器。
-          注意：Druid 的 StatViewServlet / WebStatFilter 至今仍是 javax.servlet 实现，
-          在 SB3（jakarta）下会在启动时抛 NoClassDefFoundError，因此 DruidConfig 中
-          这两个 Bean 已移除（监控台本就是 app.druid.stat.enabled=false 默认关闭的调试功能）。
+          Druid 连接池 + 官方监控页。
+          关键：Druid 从 1.2.25 起提供了 **jakarta 变体**
+          （包名 com.alibaba.druid.support.jakarta.*），因此 Spring Boot 3 下可以正常挂载
+          官方监控 Servlet。1.2.24 及更早只有 javax 版，挂上去会在启动时抛
+          NoClassDefFoundError —— 这正是上一轮曾移除该监控页的原因。
+          现升级到含 jakarta 变体的 1.2.28，监控页重新接入并纳入后台（见 DruidConfig）。
         -->
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>druid</artifactId>
-            <version>1.2.24</version>
+            <version>1.2.28</version>
+        </dependency>
+
+        <!-- ==================== API 文档（Swagger UI） ==================== -->
+        <!--
+          springdoc-openapi 2.x 对应 Spring Boot 3.x（3.x 对应 Spring Boot 4）。
+          替代原先的 springfox 2.9.2（不支持 SB3，上一轮已删除）。
+          开关与访问路径由 application.yml 的 app.api-doc.* 控制，默认仅管理员可见。
+        -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.8.4</version>
         </dependency>
 
         <!-- ==================== 工具 ==================== -->

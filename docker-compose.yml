@@ -89,6 +89,18 @@ services:
       APP_CACHE_TTL_SECONDS: ${APP_CACHE_TTL_SECONDS:-60}
       APP_SLOW_SQL_ENABLED: ${APP_SLOW_SQL_ENABLED:-true}
       APP_SLOW_SQL_THRESHOLD_MS: ${APP_SLOW_SQL_THRESHOLD_MS:-500}
+      # 运维工具（接入后台「运维工具」区，清单由 /api/admin/devtools 按配置输出）
+      #   · Druid 监控页：启用时必须提供口令（≥8 位），否则后端启动失败
+      #   · API 文档：生产建议 API_DOC_ENABLED=false，或由 Nginx 限制内网访问
+      DRUID_STAT_ENABLED: ${DRUID_STAT_ENABLED:-true}
+      DRUID_STAT_PASSWORD: ${DRUID_STAT_PASSWORD:-}
+      DRUID_STAT_USER: ${DRUID_STAT_USER:-admin}
+      DRUID_STAT_PATH: ${DRUID_STAT_PATH:-/druid/*}
+      DRUID_STAT_RESET: ${DRUID_STAT_RESET:-false}
+      DRUID_STAT_URI_MONITOR: ${DRUID_STAT_URI_MONITOR:-true}
+      API_DOC_ENABLED: ${API_DOC_ENABLED:-true}
+      API_DOC_UI_PATH: ${API_DOC_UI_PATH:-/swagger-ui.html}
+      API_DOC_JSON_PATH: ${API_DOC_JSON_PATH:-/v3/api-docs}
       TZ: Asia/Shanghai
     ports:
       - "${BACKEND_PORT:-8081}:8081"

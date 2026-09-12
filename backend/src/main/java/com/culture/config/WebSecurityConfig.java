@@ -2,6 +2,7 @@ package com.culture.config;
 
 import com.culture.api.JwtAuthFilter;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -12,6 +13,9 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Spring Security 配置（Spring Boot 3 / Spring Security 6）。
@@ -45,43 +49,97 @@ import java.io.IOException;
 @EnableWebSecurity
 public class WebSecurityConfig {
 
-    /**
-     * 无需登录即可访问的路径。
-     *
-     * <p>注意 {@code /api/search} 与 {@code /api/search/hot} 的写法差异：
-     * 不能写成 {@code /api/search/**} —— 那会让需要登录的 {@code /api/search/history}
-     * 变成匿名可达。</p>
-     */
-    private static final String[] PUBLIC_PATHS = {
-            // ---- 前端设计资源与媒体（/index、/static 已由 Nginx 托管，此处仅为本地预览兜底）----
-            "/static/**", "/index/**",
-            "/upload/media/**",            // 富文本正文图片/视频
-            "/showFmImg/**", "/showimage/**",
-            // ---- SEO：站点地图 / 爬虫规则 / RSS（爬虫无登录态）----
-            "/sitemap.xml", "/robots.txt", "/rss.xml",
-            "/sitemap-static.xml", "/sitemap-culture-*.xml",
-            // ---- 公开 API 与认证 API ----
-            "/api/auth/**",
-            "/api/home/**",
-            "/api/culture/list",
-            "/api/culture/detail",
-            "/api/culture/categorys",
-            "/api/sentence/list",
-            "/api/search",
-            "/api/search/hot",
-            "/api/tag/list",
-            "/api/tag/cultures",
-            "/api/seo/**",
-            "/api/comment/list",
-            "/api/health",
-            "/api/metrics",
-            "/api/client-error"
-    };
-
     private final JwtAuthFilter jwtAuthFilter;
 
-    public WebSecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    /**
+     * 运维工具（Druid 监控页 / API 文档）的访问路径，全部来自配置。
+     *
+     * <p>路径可配置，所以不能在静态常量里写死 —— 否则改了
+     * {@code app.druid.stat.path} / {@code app.api-doc.ui-path} 之后安全配置就对不上了。</p>
+     */
+    private final String druidPath;
+    private final boolean druidEnabled;
+    private final boolean apiDocEnabled;
+    private final String apiDocUiPath;
+    private final String apiDocJsonPath;
+
+    public WebSecurityConfig(
+            JwtAuthFilter jwtAuthFilter,
+            @Value("${app.druid.stat.path:/druid/*}") String druidPath,
+            @Value("${app.druid.stat.enabled:true}") boolean druidEnabled,
+            @Value("${app.api-doc.enabled:true}") boolean apiDocEnabled,
+            @Value("${app.api-doc.ui-path:/swagger-ui.html}") String apiDocUiPath,
+            @Value("${app.api-doc.api-docs-path:/v3/api-docs}") String apiDocJsonPath) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.druidPath = druidPath;
+        this.druidEnabled = druidEnabled;
+        this.apiDocEnabled = apiDocEnabled;
+        this.apiDocUiPath = apiDocUiPath;
+        this.apiDocJsonPath = apiDocJsonPath;
+    }
+
+    /**
+     * 组装 permitAll 路径清单。
+     *
+     * <p>为什么要动态拼：Druid 与 API 文档的路径是可配置的，
+     * 且关闭时应当<b>连放行规则都不注册</b>（避免留下一个「已放行但没有对应端点」的悬空规则）。</p>
+     */
+    private List<String> buildPublicPaths() {
+        List<String> paths = new ArrayList<>(Arrays.asList(
+                // ---- 前端设计资源与媒体（/index、/static 已由 Nginx 托管，此处仅为本地预览兜底）----
+                "/static/**", "/index/**",
+                "/upload/media/**",            // 富文本正文图片/视频
+                "/showFmImg/**", "/showimage/**",
+                // ---- SEO：站点地图 / 爬虫规则 / RSS（爬虫无登录态）----
+                "/sitemap.xml", "/robots.txt", "/rss.xml",
+                "/sitemap-static.xml", "/sitemap-culture-*.xml",
+                // ---- 公开 API 与认证 API ----
+                "/api/auth/**",
+                "/api/home/**",
+                "/api/culture/list",
+                "/api/culture/detail",
+                "/api/culture/categorys",
+                "/api/sentence/list",
+                "/api/search",                 // 注意：不能写 /api/search/**，
+                "/api/search/hot",             // 否则 /api/search/history（需登录）会变成匿名可达
+                "/api/tag/list",
+                "/api/tag/cultures",
+                "/api/seo/**",
+                "/api/comment/list",
+                "/api/health",
+                // Prometheus 指标：监控系统抓取时需要匿名可读（只输出聚合数字，无业务明细）。
+                // 注意别在重构这段清单时漏掉它 —— 漏掉会让 /api/metrics 直接 401，
+                // 抓取端静默断掉（本次重构就踩过一次，由 feature-check 用例抓出）。
+                "/api/metrics",
+                "/api/client-error"
+        ));
+
+        // Druid 监控页：**由它自己的登录 + IP 白名单保护**（见 DruidConfig），
+        // 所以这里必须放行，否则连它的登录页都会被 Spring Security 拦掉。
+        // 关闭时（druidEnabled=false）不注册任何规则。
+        if (druidEnabled) {
+            String base = druidPath.endsWith("*")
+                    ? druidPath.substring(0, druidPath.length() - 1)   // "/druid/*" -> "/druid/"
+                    : druidPath;
+            if (!base.endsWith("/")) base = base + "/";
+            paths.add(base + "**");
+            paths.add(druidPath);
+        }
+
+        // API 文档（springdoc）：UI 页面 + OpenAPI JSON。
+        // 生产环境建议用 API_DOC_ENABLED=false 关闭，或由 Nginx 限制为内网可访问。
+        if (apiDocEnabled) {
+            paths.add(apiDocUiPath);
+            paths.add(apiDocUiPath + "/**");
+            paths.add(apiDocJsonPath);
+            paths.add(apiDocJsonPath + "/**");
+            paths.add("/swagger-ui/**");
+            paths.add("/v3/api-docs.yaml");
+            paths.add("/swagger-resources/**");
+            paths.add("/webjars/**");
+        }
+
+        return paths;
     }
 
     @Bean
@@ -90,7 +148,7 @@ public class WebSecurityConfig {
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         http.authorizeHttpRequests(auth -> auth
-                .requestMatchers(PUBLIC_PATHS).permitAll()
+                .requestMatchers(buildPublicPaths().toArray(new String[0])).permitAll()
                 .anyRequest().authenticated());
 
         // 纯 Token 无状态：不创建也不使用 HttpSession
