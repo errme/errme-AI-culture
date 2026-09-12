@@ -106,6 +106,36 @@ function acceptsGzip(req) {
   return String(req.headers['accept-encoding'] || '').indexOf('gzip') > -1
 }
 
+/**
+ * 属于 SPA 的路由前缀。
+ *
+ * 为什么需要它：本预览服（以及生产 Nginx）在找不到静态文件时会回退到 SPA 入口页，
+ * 这是 history 路由的常规做法。但「无脑回退」会把**后端自己的页面**也吃掉 ——
+ * 实际症状：后台点「数据库监控 / API 文档」跳到了前端首页，
+ * 因为 /druid/、/swagger-ui.html 既不在代理前缀里、也不是静态文件，就落进了 SPA 回退。
+ *
+ * 因此改为**白名单式回退**：只有确实属于 SPA 的路由才回退到入口 HTML，其余一律转给后端。
+ * 附带好处：以后给后台加运维工具（只要不是 SPA 路由）**不需要再改这个文件** ——
+ * 即使后端把 app.druid.stat.path 改成别的路径，也能被正确代理。
+ *
+ * 取值来自 web/src/router/{front,auth,admin}.js 的实际路由定义：
+ *   front：/  /culture  /sentence  /about  /search  /tag  /center
+ *   auth ：/auth/**
+ *   admin：/admin/**（其中 /admin/login 走独立入口）
+ * 另有若干客户端重定向路由：/index /login /signup /logout
+ */
+const SPA_ROUTE_PREFIXES = [
+  '/culture', '/sentence', '/about', '/search', '/tag', '/center',
+  '/auth', '/admin',
+  '/index', '/login', '/signup', '/logout'
+]
+
+/** 该路径是否属于 SPA 自己管理的路由 */
+function isSpaRoute(pathname) {
+  if (pathname === '/') return true
+  return SPA_ROUTE_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
+}
+
 /** 按路径选择 SPA 入口（等价 Nginx 的多 location try_files） */
 function entryFor(pathname) {
   if (pathname === '/admin/login') return '/admin-login.html'
@@ -239,8 +269,16 @@ const server = http.createServer((req, res) => {
     return
   }
 
-  // 5) history 路由回退到对应入口 HTML（未预渲染的路由走 SPA）
-  sendFile(req, res, path.join(ROOT, entryFor(pathname)))
+  // 5) history 路由回退：**只有确实是 SPA 路由的路径**才回退到入口 HTML，
+  //    其余一律交给后端。
+  //    此前是无条件回退到 front.html，导致后端自己的页面（/druid/、/swagger-ui.html、
+  //    /v3/api-docs）在经前端入口访问时被换成了前端首页 —— 后台点「数据库监控 / API 文档」
+  //    就会跳到首页。改成白名单后，这类路径会被正确代理到后端。
+  if (isSpaRoute(pathname)) {
+    sendFile(req, res, path.join(ROOT, entryFor(pathname)))
+    return
+  }
+  proxy(req, res)
 })
 
 server.listen(PORT, () => {

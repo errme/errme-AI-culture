@@ -113,31 +113,38 @@ server {
     }
 
     # ==========================================================================
-    #  运维工具（后台左侧「运维工具」区会列出它们，路径以后端配置为准）
+    #  运维工具（后台左侧「运维工具」区会列出它们）
     #
-    #  ⚠ 生产环境强烈建议：把下面这段「只允许内网访问」打开。
-    #     默认（注释状态）它们对公网可达 —— 因为后端的 permitAll 清单里包含这两条路径
-    #     （Druid 靠它自己的登录 + IP 白名单保护；API 文档默认是公开的）。
-    #     在 Nginx 这一层再收一道内网限制，是最省事也最稳妥的做法。
+    #  ⚠ 这段**必须保留**。不加的话，这些请求会落进最下面的 `location /`，
+    #     被 try_files 的前端首页顶替 —— 表现为「后台点『数据库监控 / API 文档』
+    #     跳到了前端首页」。预览服 serve-dist.mjs 也修了同一处问题（改成白名单式回退）。
     #
-    #  改过 app.druid.stat.path / app.api-doc.ui-path 时，这里的路径要同步改。
+    #  ⚠ 路径必须与后端配置一致（Nginx 无法在运行时读 Spring 配置）：
+    #     app.druid.stat.path      默认 /druid/*
+    #     app.api-doc.ui-path      默认 /swagger-ui.html（springdoc 会再跳到 /swagger-ui/index.html）
+    #     app.api-doc.api-docs-path 默认 /v3/api-docs
+    #     改了后端路径，这里要同步改。
+    #
+    #  ⚠ 生产环境建议同时打开下面的「只允许内网访问」：
+    #     API 文档默认是公开的（后端 permitAll），Druid 靠自己的登录 + IP 白名单保护；
+    #     在 Nginx 这层再收一道是最省事也最稳妥的做法。
     # ==========================================================================
-    # location ~ ^/(druid|swagger-ui|v3/api-docs) {
-    #     # 只允许本机与内网网段访问（按需调整）
-    #     allow 127.0.0.1;
-    #     allow 10.0.0.0/8;
-    #     allow 172.16.0.0/12;
-    #     allow 192.168.0.0/16;
-    #     deny all;
-    #
-    #     proxy_pass         http://127.0.0.1:8081;
-    #     proxy_http_version 1.1;
-    #     proxy_set_header   Host              $host;
-    #     proxy_set_header   X-Real-IP         $remote_addr;
-    #     proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-    #     proxy_set_header   X-Forwarded-Proto $scheme;
-    #     access_log         off;
-    # }
+    location ~ ^/(druid|swagger-ui|v3/api-docs|swagger-resources|webjars) {
+        # ---- 只允许本机与内网网段访问（按需启用）----
+        # allow 127.0.0.1;
+        # allow 10.0.0.0/8;
+        # allow 172.16.0.0/12;
+        # allow 192.168.0.0/16;
+        # deny all;
+
+        proxy_pass         http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        access_log         off;
+    }
 
     # ---- 老设计资源：静态直出（目录结构整理后不再反代后端）----
     #   /index/**        ← web/dist/index/**          （前台设计资源）

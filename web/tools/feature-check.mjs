@@ -269,15 +269,34 @@ async function main() {
     !!druidTool && !!apiDocTool && druidTool.url.indexOf('/druid') === 0,
     devList.map(t => `${t.key}=${t.url}`).join(' '))
 
-  // 逐个探活：Druid 会 302 到自己的登录页；Swagger UI 直接 200
+  // 逐个探活：**必须经前端入口（BASE）验证，而不是直连后端（API）**。
+  // 这条路径才是用户点菜单时真正走的：代理层若没把 /druid、/swagger-ui 转给后端，
+  // 请求就会落进 SPA 回退、返回前端首页 —— 曾真实发生过（后台点这两个工具跳到首页）。
+  // 早期用例只直连后端，因此没能发现该问题，这里特意补上前端入口的校验。
+  function isFrontPage(body) {
+    // 前端首页的特征：zh-CN + 存在 entries/front.js 或 前台标题；且不含工具自身特征串
+    return /entries\/front\.js/.test(body) || /<title>遇你<\/title>/.test(body)
+  }
+
   if (druidTool) {
-    const dResp = await fetch(API + druidTool.url, { redirect: 'manual' })
-    record('Druid 监控页可访问（302 跳自己的登录页 = 已挂载成功）',
-      dResp.status === 302 || dResp.status === 200, `HTTP ${dResp.status} url=${druidTool.url}`)
+    const dResp = await fetch(BASE + druidTool.url, { redirect: 'follow' })
+    const dBody = await dResp.text().catch(() => '')
+    record('Druid 监控页可经前端入口访问（未被 SPA 回退成前端首页）',
+      dResp.status === 200 && !isFrontPage(dBody) && /druid/i.test(dBody),
+      `HTTP ${dResp.status} url=${BASE}${druidTool.url} 是前端首页=${isFrontPage(dBody)}`)
   }
   if (apiDocTool) {
-    const sResp = await fetch(API + apiDocTool.url, { redirect: 'follow' })
-    record('Swagger UI 可访问', sResp.status === 200, `HTTP ${sResp.status} url=${apiDocTool.url}`)
+    const sResp = await fetch(BASE + apiDocTool.url, { redirect: 'follow' })
+    const sBody = await sResp.text().catch(() => '')
+    record('Swagger UI 可经前端入口访问（未被 SPA 回退成前端首页）',
+      sResp.status === 200 && !isFrontPage(sBody) && /swagger/i.test(sBody),
+      `HTTP ${sResp.status} url=${BASE}${apiDocTool.url} 是前端首页=${isFrontPage(sBody)}`)
+    // OpenAPI JSON 也经前端入口取一次
+    const viaProxyDoc = await fetch(BASE + '/v3/api-docs')
+    const viaProxyJson = await viaProxyDoc.json().catch(() => null)
+    record('OpenAPI JSON 可经前端入口取得（application/json，不是 HTML）',
+      viaProxyDoc.status === 200 && !!viaProxyJson && !!viaProxyJson.openapi,
+      `HTTP ${viaProxyDoc.status} content-type=${viaProxyDoc.headers.get('content-type')}`)
     const docResp = await fetch(API + '/v3/api-docs')
     const doc = await docResp.json().catch(() => null)
     const pathCount = doc && doc.paths ? Object.keys(doc.paths).length : 0
