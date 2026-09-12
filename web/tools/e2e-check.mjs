@@ -306,15 +306,18 @@ async function main() {
     record('后台原生 Symbol 未被 core-js polyfill 覆盖（Text vnode 关键前提）',
       symState && symState.txtType === 'symbol' && symState.txtStr === 'Symbol(v-txt)',
       `Symbol.for('v-txt') = ${symState && symState.txtStr}（typeof=${symState && symState.txtType}，守卫=${symState && symState.guard}）`)
-    record('后台旧插件在 Vue 初始化之后加载且均已就绪',
-      symState && symState.tablePlugin && symState.validatorPlugin && symState.confirmShim,
-      `jQuery=${symState && symState.jq} bootstrapTable=${symState && symState.tablePlugin} ` +
+    // 后台已移除 bootstrap-table（列表页全部迁到 Vue 渲染），因此这里反过来断言
+    // 「它确实没有被加载」，把这个瘦身结果锁住；validator / 确认弹窗兼容层仍须就绪。
+    record('后台旧插件在 Vue 初始化之后按需就绪（bootstrap-table 已移除）',
+      symState && !symState.tablePlugin && symState.validatorPlugin && symState.confirmShim,
+      `jQuery=${symState && symState.jq} bootstrapTable=${symState && symState.tablePlugin}（期望 false） ` +
       `validator=${symState && symState.validatorPlugin} 确认弹窗兼容层=${symState && symState.confirmShim}`)
 
-    // 打开新增弹窗会动态加载 quill.js（同样内置 core-js），确认加载后 Symbol 仍是原生
-    // 等页面初始化完成（onMounted 末尾会挂 window.edit / window.CultureEditor），
-    // 保证测的是「资源已就绪」的正常路径而不是加载竞态
-    await cdp.waitFor(`!!window.__appMountedAt && !!window.edit && !!window.CultureEditor &&
+    // 打开新增弹窗才会**按需加载** quill.js（同样内置 core-js），
+    // 这里正好验证「懒加载路径确实能拿到编辑器」+「加载后 Symbol 仍是原生」。
+    // 注意：window.CultureEditor 现在是弹窗打开后才出现的（已不再随页面 onMounted 预加载），
+    // 所以等待条件里不能要求它已存在，否则会一直等到超时、点击根本不会发生。
+    await cdp.waitFor(`!!window.__appMountedAt && !!window.edit &&
       [...document.querySelectorAll('.coder-layout-content a, .coder-layout-content button')]
         .some(el => (el.textContent || '').includes('添加文化'))`, 15000)
     await cdp.evaluate(`(() => {
@@ -323,6 +326,13 @@ async function main() {
       if (btn) btn.click()
       return !!btn
     })()`)
+    // 编辑器资源现在是打开弹窗时才异步加载的，必须等它真正就绪再断言
+    // （此处也顺便验证了「懒加载确实会在需要时把资源取回来」）。
+    try {
+      await cdp.waitFor(`!!window.Quill
+        && !!(window.infoEditor && typeof window.infoEditor.getHTML === 'function')
+        && !!document.querySelector('#info-editor .ql-editor')`, 15000)
+    } catch (e) { /* 超时也继续往下断言，由断言给出可读的失败详情 */ }
     const afterQuill = await cdp.evaluate(`(() => {
       const txt = (function () { try { return window.Symbol.for('v-txt') } catch (e) { return null } })()
       return {

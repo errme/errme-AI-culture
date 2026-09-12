@@ -2,7 +2,6 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from '@/App.vue'
 import router from '@/router/admin'
-import { loadScript } from '@/utils/loadScript'
 import '@/styles/admin-ui.css'   // 后台统一视觉规范（只新增 ad-* 命名空间，不影响老样式）
 
 /**
@@ -38,28 +37,18 @@ app.config.errorHandler = (err, instance, info) => {
 }
 
 /**
- * bootstrap-table 自带 core-js，会覆盖原生 Symbol（详见 admin.html 顶部说明）。
- * 必须等 Vue 模块初始化（import 阶段已完成，Symbol 常量均为原生）之后再加载，
- * 又要赶在页面组件挂载（需要 $.fn.bootstrapTable）之前，所以在 mount 前按序加载。
+ * 挂载入口。
+ *
+ * 这里原先还有一步「先按序加载 bootstrap-table 及其中文包，再 mount」——
+ * 因为当时页面表格由该插件渲染，且它内置 core-js 会覆盖原生 Symbol，
+ * 必须刻意安排在 Vue 模块初始化之后。
+ *
+ * 后台 5 个列表页现已全部迁移为纯 Vue 渲染（v-for + 自建分页/排序），
+ * 全仓已无任何有效的 bootstrapTable() 调用，因此该步骤整体移除：
+ * 后台每个页面少下载约 135KB JS（108KB + 27KB），
+ * 同时也去掉了「插件自带 core-js 污染原生 Symbol」这一事故来源。
  */
-const TABLE_PLUGINS = [
-  '/static/admin/js/bootstrap-table/bootstrap-table.min.js',
-  '/static/admin/js/bootstrap-table/bootstrap-table-zh-CN.js'
-]
-
-async function loadTablePlugins() {
-  for (const src of TABLE_PLUGINS) {
-    try {
-      await loadScript(src)
-      // 加载后立刻把全局 Symbol 还原为原生实现，避免影响其它库
-      if (typeof window.__guardNativeSymbol === 'function') window.__guardNativeSymbol()
-    } catch (e) {
-      console.error('[admin] 表格插件加载失败：', src, e.message)
-    }
-  }
-}
-
-loadTablePlugins().then(() => router.isReady()).then(() => {
+router.isReady().then(() => {
   app.mount('#app')
   // 供端到端验证使用：记录挂载时刻，用于断言所有 CSS 均在渲染前加载完成（避免 FOUC）
   window.__appMountedAt = performance.now()

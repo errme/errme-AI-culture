@@ -32,30 +32,33 @@
   <link rel="stylesheet" href="/static/admin/css/bootstrap.min.css">
   <link rel="stylesheet" href="/static/admin/css/materialdesignicons.min.css">
   <link rel="stylesheet" href="/static/admin/css/style.min.css">
-  <link rel="stylesheet" href="/static/admin/js/bootstrap-table/bootstrap-table.min.css">
-  <!-- 富文本编辑器样式（文化管理页用到；放在 head 里避免打开弹窗时才注入造成的样式闪烁） -->
-  <link rel="stylesheet" href="/static/admin/js/vendor/quill/quill.snow.css">
-  <link rel="stylesheet" href="/static/admin/css/culture-editor.css">
+  <!--
+    已移除 bootstrap-table 的样式与脚本（原先 108KB + 27KB JS / 10KB CSS）：
+    后台 5 个列表页早已全部迁移为纯 Vue 渲染（v-for + 自建分页），
+    模板里用的是原生 Bootstrap 3 的 table/table-bordered/table-hover 类，
+    与 bootstrap-table 插件无关。全仓搜索确认已无任何有效的 bootstrapTable() 调用。
+    顺带消除了一类隐患：bootstrap-table 内置 core-js，会用自带的 Symbol polyfill
+    覆盖原生 Symbol，是「路由切换后所有菜单点击失效」那类事故的来源之一。
+  -->
+  <!--
+    富文本编辑器样式（quill.snow.css 24KB + culture-editor.css 6KB）也不再静态引入：
+    它们只被文化管理页的编辑器用到，且 CultureManageView 的 loadEditorAssets() 会按需注入。
+    由于打开新增/编辑弹窗时会先 await 这些样式加载完再创建编辑器
+    （loadStyle 在 link.onload 时才 resolve），因此**不会出现样式闪烁**。
+    这样后台每个页面少下载约 30KB CSS。
+  -->
 
   <script src="/static/admin/js/jquery.min.js"></script>
   <script src="/static/admin/js/bootstrap.min.js"></script>
-  <!--
-    bootstrap-table（含 bootstrap-table-zh-CN）【不在这里加载】：
-    它内置了 core-js，加载时会用自带的 Symbol polyfill 覆盖原生 Symbol（且是 defineProperty 直接替换，
-    无法用 setter 拦截）。若在 Vue 模块初始化之前加载，Vue 内部的 Symbol 常量（Text/Comment/Fragment…）
-    会变成「假 Symbol 对象」，createVNode 因 isObject(type) 为真把文本节点误判为组件节点，
-    路由切换卸载旧页面时抛 “Cannot destructure property 'bum' of 'instance' as it is null” /
-    “Cannot read properties of null (reading 'parentNode')”，之后所有菜单点击全部失效。
-    因此改由入口在 Vue 初始化之后再加载（见 src/entries/admin.js）。
-  -->
   <script src="/static/admin/js/admin-logout.js"></script>
   <!--
     以下库【按需加载】，不进入口 head（原来所有页面都要下载一遍）：
       · bootstrapValidator / fileinput(+中文包) —— 仅表单页，见 router/admin.js 的 meta.scripts
       · Chart.js —— 仅后台首页
       · perfect-scrollbar + main.min.js —— 侧边栏主题脚本，由 AdminLayout 挂载后加载
-      · bootstrap-table —— 内置 core-js，必须等 Vue 初始化后再加载（见 src/entries/admin.js）
       · jquery-confirm —— 已被自研顶部提示/确认弹窗取代（src/utils/notify.js + components/DialogHost.vue）
+      · bootstrap-table —— 已整体移除（列表页全部迁到 Vue，插件无任何有效调用方）
+      · Quill —— 仅文化管理页的编辑器用到，改为打开编辑弹窗时才加载，见 CultureManageView
   -->
   <!--
     main.min.js（后台主题：侧边栏滚动条/折叠/子菜单展开）会在 jQuery ready 时按 DOM 初始化，

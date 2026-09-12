@@ -20,8 +20,6 @@ export const LEGACY = {
   fileinputJs: '/static/admin/js/plugins/fileinput/js/fileinput.js',
   fileinputZhJs: '/static/admin/js/plugins/fileinput/js/locales/zh.js',
   fileinputCss: '/static/admin/js/plugins/fileinput/css/fileinput.css',
-  /* 后台首页图表 */
-  chartJs: '/static/admin/js/Chart.js',
   /* 主题脚本依赖（侧边栏滚动条）与其本体 */
   perfectScrollbarJs: '/static/admin/js/perfect-scrollbar.min.js',
   mainThemeJs: '/static/admin/js/main.min.js',
@@ -33,5 +31,9 @@ export const LEGACY = {
   serializeJs: '/static/admin/js/jquery.serialize-object.min.js'
 }
 
-/** 表格页公共样式（bootstrap-table 已在入口运行时加载，样式保留在 head 以免表格闪动） */
-export const TABLE_CSS = '/static/admin/js/bootstrap-table/bootstrap-table.min.css'
+/*
+ * 已删除的死常量（原本导出但全仓无任何引用）：
+ *   · chartJs   —— 后台首页已改为纯数据看板，不再加载 555KB 的 Chart.js
+ *   · TABLE_CSS —— 表格页已全部迁到 Vue 渲染，bootstrap-table 插件与其样式整体移除
+ * 对应的静态文件也已一并删除。
+ */

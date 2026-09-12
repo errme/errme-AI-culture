@@ -1691,12 +1691,14 @@ onMounted(async () => {
   loadAllTags()
   await nextTick()
   await whenJQuery()
-  try {
-    await loadEditorAssets()
-  } catch (e) {
-    // 编辑器资源加载失败不影响列表/搜索/删除
-    if (window.console) console.warn('[culture] 编辑器资源加载失败：' + ((e && e.message) || e))
-  }
+  /*
+   * 编辑器资源（quill.js 约 209KB + culture-editor.js + serialize-object.js）**不在这里预加载**。
+   *
+   * 原来这里会 await loadEditorAssets()，也就是「只要打开过文化管理页」就要下载这 200 多 KB，
+   * 哪怕用户只是看看列表、从不点「新增/编辑」。
+   * 现在改为完全按需：打开新增/编辑弹窗时由 ensureEditorAssets() 触发
+   * （该函数与弹窗级懒初始化早已存在，此处只是去掉这份多余的急切加载）。
+   */
   if (disposed) return
 
   // 行内按钮改用 @click；同时仍挂到 window 上（旧行内 onclick / 外部脚本按 id 调用 edit / del / showVersions）

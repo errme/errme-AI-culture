@@ -576,21 +576,13 @@ function loadAll() {
   loadLogs()
 }
 
-/** bootstrap-table：本页是原生表格（与原模板一致），仅在意外初始化过时做防御式销毁 */
-function destroyBootstrapTable() {
-  // 注意：jq() 是「零参数」辅助函数（返回 window.jQuery），
-  // 不能写成 jq('#acc-body')：打包时 Terser 会把无用的实参优化掉，
-  // 变成 window.jQuery.closest(...) → TypeError，进而让 onBeforeUnmount 抛错、
-  // 页面卸载中断、之后所有后台菜单点击失效。
-  const $ = jq()
-  if (!$ || !$.fn || !$.fn.bootstrapTable) return
-  try {
-    const $table = $('#acc-body').closest('table')
-    if ($table.length && $table.data('bootstrap.table')) $table.bootstrapTable('destroy')
-  } catch (e) {
-    console.warn('[MailSettings] 表格销毁失败：', e.message)
-  }
-}
+/**
+ * 说明：本页是原生表格（与原模板一致），从未使用 bootstrap-table。
+ * 这里原有一个「防御式销毁」函数 destroyBootstrapTable()，
+ * 但它被 `$table.data('bootstrap.table')` 守卫着，而该 data 键只可能由插件的
+ * 初始化写入 —— 全站已无任何 bootstrapTable() 初始化，所以这段代码**永远不会执行**。
+ * 随着 bootstrap-table 从后台入口整体移除，该函数与调用一并删除。
+ */
 
 function closeConfirm() {
   if (confirmBox && typeof confirmBox.close === 'function') confirmBox.close()
@@ -609,7 +601,6 @@ onBeforeUnmount(() => {
   try {
     disposed = true
     closeConfirm()
-    destroyBootstrapTable()
     // 全局事件（本页未注册，保留命名空间解绑以防后续扩展）
     const $ = jq()
     if ($) $(window).off('.mailSettings')
