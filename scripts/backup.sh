@@ -5,7 +5,7 @@
 # 备份内容（内容站的全部资产）：
 #   1) MySQL 数据库 culture_v2（结构 + 数据）
 #   2) 富文本正文媒体目录 upload/media（图片/视频）
-#   3) 头像与文化封面 frontend/static/upload
+#   3) 头像与文化封面 upload/avatar + upload/culture
 #
 # 用法：
 #   ./scripts/backup.sh                 # 备份到 ./backups/yyyyMMdd_HHmmss/
@@ -52,9 +52,12 @@ if [ -d upload/media ]; then
 fi
 
 # ---------- 3. 头像与封面 ----------
-if [ -d frontend/static/upload ]; then
-  log "打包 frontend/static/upload ..."
-  tar -czf "$TARGET/upload.tar.gz" -C frontend/static upload
+# 目录结构整理后，avatar/culture 与 media 一样都位于项目根的 upload/ 下。
+# 这里显式列出两个子目录打包，避免把 media 重复打进去（media 已由第 2 步单独备份）。
+if [ -d upload/avatar ] || [ -d upload/culture ]; then
+  log "打包 upload/avatar + upload/culture ..."
+  tar -czf "$TARGET/upload.tar.gz" -C upload avatar culture 2>/dev/null \
+    || tar -czf "$TARGET/upload.tar.gz" -C upload $( [ -d upload/avatar ] && echo avatar ) $( [ -d upload/culture ] && echo culture )
   log "  上传目录备份完成：$(du -h "$TARGET/upload.tar.gz" | cut -f1)"
 fi
 
@@ -65,7 +68,7 @@ cat > "$TARGET/README.txt" <<EOF
 数据库  ：$DB_NAME @ $DB_HOST:$DB_PORT
 恢复数据库： mysql --no-defaults -u$DB_USER -p*** $DB_NAME < db_${DB_NAME}.sql
 恢复媒体  ： tar -xzf media.tar.gz  -C <项目根>/upload
-恢复上传  ： tar -xzf upload.tar.gz -C <项目根>/frontend/static
+恢复上传  ： tar -xzf upload.tar.gz -C <项目根>/upload
 EOF
 
 # ---------- 5. 清理过期备份 ----------

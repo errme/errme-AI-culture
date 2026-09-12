@@ -16,7 +16,13 @@ web/dist/
 node_modules/
 .pnpm-store/
 
-# ---------- 运行时数据（上传的图片/视频、数据库与媒体备份）----------
+# ---------- 运行时数据 ----------
+#  upload/ 下的内容全部是用户上传的运行时数据，统一不入库：
+#    upload/avatar/    头像
+#    upload/culture/   文化封面
+#    upload/media/     富文本正文图片与视频
+#  这些数据由 scripts/backup.sh 备份（DB + 三个上传目录），
+#  不通过 git 分发——新环境从备份恢复即可。
 upload/
 backups/
 dump.rdb

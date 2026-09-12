@@ -27,7 +27,10 @@ KEEP="${KEEP:-0}"
 
 BACKUP_FILE="${1:-}"
 if [ -z "$BACKUP_FILE" ]; then
-  BACKUP_FILE="$(ls -1t backups/*.sql 2>/dev/null | head -1 || true)"
+  # backup.sh 实际产出的是 backups/<时间戳>/db_<库名>.sql（多了一层时间戳子目录），
+  # 而这里原本只匹配 backups/*.sql —— 于是永远找不到备份、演练无法进行。
+  # 现在优先匹配新布局，同时兼容直接放在 backups/ 下的旧布局。
+  BACKUP_FILE="$(ls -1t backups/*/db_*.sql backups/*.sql 2>/dev/null | head -1 || true)"
 fi
 if [ -z "$BACKUP_FILE" ] || [ ! -f "$BACKUP_FILE" ]; then
   echo "找不到备份文件。用法：bash scripts/verify-backup.sh [path/to.sql]" >&2
@@ -82,9 +85,12 @@ else
 fi
 
 echo "[verify-backup] 4/4 校验媒体/上传备份可解包 ..."
-LATEST_TAR="$(ls -1t backups/*upload*.tar.gz backups/*upload*.tgz backups/*media*.tar.gz 2>/dev/null | head -1 || true)"
+# 只校验「与本次 SQL 同一个备份集」里的包（backup.sh 输出到 backups/<时间戳>/）。
+# 原实现 glob 的是 backups/*upload*.tar.gz，同样因为没有考虑时间戳子目录而永远匹配不到。
+BACKUP_SET="$(dirname "$BACKUP_FILE")"
+LATEST_TAR="$(ls -1t "$BACKUP_SET"/*upload*.tar.gz "$BACKUP_SET"/*upload*.tgz "$BACKUP_SET"/*media*.tar.gz 2>/dev/null | head -1 || true)"
 if [ -z "$LATEST_TAR" ]; then
-  echo "  （未找到上传目录备份包，跳过；backup.sh 若包含媒体备份请检查命名）"
+  echo "  （本次备份集 $BACKUP_SET 内没有媒体/上传包，跳过；backup.sh 若包含媒体备份请检查命名）"
 else
   if tar -tzf "$LATEST_TAR" >/dev/null 2>&1; then
     echo "  ✓ $LATEST_TAR 可正常解包（$(tar -tzf "$LATEST_TAR" | wc -l | tr -d ' ') 个条目）"

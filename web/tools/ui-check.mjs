@@ -77,7 +77,12 @@ async function main() {
     const el = document.querySelector('.ds-toast')
     if (!el) return null
     const r = el.getBoundingClientRect()
-    return { text: el.textContent.trim(), top: Math.round(r.top), centerX: Math.round(r.left + r.width / 2), viewportCenter: Math.round(window.innerWidth / 2), z: getComputedStyle(el.parentElement).zIndex }
+    // 居中基准必须用「可见区域」宽度（clientWidth，不含纵向滚动条），
+    // 不能用 window.innerWidth —— 后者包含滚动条宽度（约 15px），
+    // 一旦页面出现纵向滚动条就会让中心值偏大约 7px 而误报失败。
+    // .ds-toasts 用的是 position:fixed + left:50%，百分比正是相对可见区域解析的，
+    // 因此视觉上本来就是居中的。
+    return { text: el.textContent.trim(), top: Math.round(r.top), centerX: Math.round(r.left + r.width / 2), viewportCenter: Math.round(document.documentElement.clientWidth / 2), z: getComputedStyle(el.parentElement).zIndex }
   })()`)
   record('顶部提示出现在页面顶部居中', !!t1 && t1.top < 60 && Math.abs(t1.centerX - t1.viewportCenter) <= 2,
     t1 ? `top=${t1.top} center=${t1.centerX}/${t1.viewportCenter} 文案=${t1.text}` : '未出现提示')

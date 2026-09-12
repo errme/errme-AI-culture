@@ -93,7 +93,8 @@ services:
     ports:
       - "${BACKEND_PORT:-8081}:8081"
     volumes:
-      - ./frontend/static/upload:/data/upload          # 上传的图片/视频
+      # 运行时上传数据：avatar / culture / media（目录结构整理后统一收敛到项目根 upload/）
+      - ./upload:/data/upload
       - ./backups:/data/backups                        # 备份脚本输出
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/api/health"]
@@ -111,6 +112,10 @@ services:
       - "${WEB_PORT:-8080}:80"
     volumes:
       # 前端构建产物（本机先执行 cd web && npm run build:all）
+      # 前端已自包含：dist/ 里含 index/ 与 static/ 老设计资源，无需后端参与
       - ./web/dist:/usr/share/nginx/html:ro
-      # 生产 Nginx 配置示例（含 gzip、缓存、SEO 反代、多入口 try_files）
-      - ./deploy/nginx.conf.example:/etc/nginx/conf.d/default.conf:ro
+      # Docker 专用配置（root 指向上面的挂载点，后端地址用服务名 backend:8081）。
+      # 注意不要用 deploy/nginx.conf.example —— 那份是裸机版：
+      #   root 是 /var/www/culture/dist、后端是 127.0.0.1:8081，
+      #   在容器里会导致静态 404 且所有接口反代失败。
+      - ./deploy/nginx.docker.conf:/etc/nginx/conf.d/default.conf:ro

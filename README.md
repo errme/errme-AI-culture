@@ -43,7 +43,7 @@
 | `./scripts/rebuild-static.sh` | 发布后重建静态页（构建 + 预渲染 + 重载 Nginx） |
 | http://localhost:8081/api/home | 后端 API（纯 JSON） |
 
-> 生产环境用 Nginx 托管 `web/dist` 并把接口反代到 8081：见 `web/nginx.conf.example`。
+> 生产环境用 Nginx 托管 `web/dist` 并把接口反代到 8081：见 `deploy/nginx.conf.example`（Docker 用 `deploy/nginx.docker.conf`）。
 > 本机没有 Nginx 时，`web/tools/serve-dist.mjs` 提供等价能力（静态 + history 回退 + 旧地址 301 + 接口反代）。
 
 ## 前台 / 后台登录分离（双 Token）
@@ -75,13 +75,15 @@
 ## 目录结构
 
 ```
-web/                        # ★ Vue3 前端工程（前后端分离）
+web/                        # ★ Vue3 前端工程（前后端分离，自包含）
   ├── front.html            #   前台站点入口（/、/culture、/sentence、/about、/center）
   ├── auth.html             #   前台认证入口（/auth/login、/auth/register、/auth/forgot）
   ├── admin.html            #   后台管理入口（/admin/**）
   ├── admin-login.html      #   后台登录入口（/admin/login）
   ├── src/{api,router,stores,layouts,components,utils,views}
-  ├── nginx.conf.example    #   生产 Nginx 配置（history 回退 + 旧 .html 301 + 接口反代）
+  ├── public/               #   ★ 老设计资源源目录（构建时原样复制到 dist/，URL 不变）
+  │   ├── index/            #     → /index/**          前台设计资源
+  │   └── static/{admin,auth}  #  → /static/{admin,auth}/**  后台与认证页设计资源
   └── tools/{serve-dist,e2e-check,debug-page}.mjs   # 本机预览服 / 端到端验证 / 定点调试
 backend/                    # ★ Spring Boot 纯 REST API
   └── src/main/java/com/culture/
@@ -90,13 +92,19 @@ backend/                    # ★ Spring Boot 纯 REST API
       ├── controller/       #   仅保留 Excel 导出与文件上传（页面控制器已删除）
       ├── service/ mapper/ entity/ query/ util/ config/
       └── resources/        #   application.yml、MyBatis XML
-frontend/static/            # 原有设计资源（index/admin/auth 的 CSS/JS/图片，仍由后端托管给 SPA 引用）
-upload/media/               # 富文本正文图片与视频（含自动生成的 thumb_ 缩略图）
+upload/                     # ★ 运行时上传数据（不入库，由 scripts/backup.sh 备份）
+  ├── avatar/               #   用户头像
+  ├── culture/              #   文化封面
+  └── media/                #   富文本正文图片与视频（含自动生成的 thumb_ 缩略图）
 scripts/backup.sh           # 数据库 + 媒体 + 上传目录备份（含 MD5 清单与恢复说明）
 docs/                       # 文档：登录分离 / 富文本编辑器 / Vue3 迁移 / 功能增强 / DB 迁移
   └── sql/03_features.sql   #   标签 / 评论 / 操作日志建表（第 4 批功能所需）
 start.sh start.bat stop.sh  # 一键启动与停止
 ```
+
+> **前端已自包含**：`cd web && npm run build` 产出的 `web/dist` 就是完整可部署产物
+> （含老设计资源），由 Nginx 直接托管；后端只提供 `/api`、`/upload/media`、
+> `/showimage`、`/showFmImg` 与 SEO 根路径。
 
 ## 管理员账号
 

@@ -21,8 +21,16 @@ const ROOT = path.resolve(fileURLToPath(new URL('../dist', import.meta.url)))
 const BACKEND = process.env.BACKEND_ORIGIN || 'http://127.0.0.1:8081'
 const PORT = Number(process.env.PORT || 8080)
 
-/** 需要反代给后端的路径前缀 */
-const BACKEND_PREFIXES = ['/api', '/static', '/index', '/upload', '/showFmImg', '/showimage', '/file', '/sitemap.xml', '/robots.txt', '/rss.xml', '/sitemap-static.xml', '/sitemap-culture-']
+/**
+ * 需要反代给后端的路径前缀。
+ *
+ * 注意这里**不含 /static 与 /index**：老设计资源已迁到 web/public/，
+ * `npm run build` 会把它们复制到 dist/ 下（URL 不变），由本预览服直接托管，
+ * 与生产 Nginx 的行为保持一致。
+ * 仍然后端提供的是：REST 接口、富文本媒体（/upload/media）、
+ * 头像与封面控制器（/showimage、/showFmImg）以及 SEO 根路径。
+ */
+const BACKEND_PREFIXES = ['/api', '/upload', '/showFmImg', '/showimage', '/file', '/sitemap.xml', '/robots.txt', '/rss.xml', '/sitemap-static.xml', '/sitemap-culture-']
 
 /** 旧地址 -> 新干净地址（301） */
 const LEGACY_REDIRECTS = {
@@ -165,9 +173,10 @@ function proxy(req, res) {
     proxyRes => {
       const headers = { ...proxyRes.headers }
       const pathname = target.pathname
-      // 老静态资源（无 hash）：后端目前返回 no-store，这里统一改成 1 天缓存 + ETag 协商。
-      // 只覆盖静态前缀，/api/** 的动态响应不动。
-      const STATIC_PREFIXES = ['/static/', '/index/', '/upload/', '/showFmImg/', '/showimage/', '/file/']
+      // 后端托管的媒体（无 hash，但文件名含 UUID）：后端返回 no-store，这里统一改成 1 天缓存。
+      // 只覆盖这几个仍由后端提供的媒体前缀，/api/** 的动态响应不动。
+      // （/static/、/index/ 已改为本地 dist 直出，不再经过这里。）
+      const STATIC_PREFIXES = ['/upload/', '/showFmImg/', '/showimage/', '/file/']
       const isLegacyStatic = STATIC_PREFIXES.some(pre => pathname.indexOf(pre) === 0)
       const cc = String(headers['cache-control'] || '')
       if (isLegacyStatic && (!cc || cc.indexOf('no-store') > -1 || cc.indexOf('no-cache') > -1)) {

@@ -252,15 +252,17 @@
                     <include>**/*.*</include>
                 </includes>
             </resource>
-            <!-- 前端资源（frontend/ 目录）：构建时打进 jar，供 Thymeleaf/静态资源使用 -->
-            <resource>
-                <directory>../frontend/templates</directory>
-                <targetPath>templates</targetPath>
-            </resource>
-            <resource>
-                <directory>../frontend/static</directory>
-                <targetPath>static</targetPath>
-            </resource>
+            <!--
+              说明（目录结构整理后）：
+              原先这里还会把 ../frontend/static（34MB 老设计资源）与 ../frontend/templates
+              打进 jar，由 Spring Boot 通过 classpath 静态资源映射对外提供。
+              现在这些设计资源已迁到 web/public/ 下，随 `npm run build` 产出到 web/dist，
+              由 Nginx 直接托管（URL 完全不变：/index/** 与 /static/{admin,auth}/**），
+              因此不再需要打进 jar —— 这一步让 jar 减小约 24MB，
+              也让「前端工程自包含」：cd web && npm run build 即为完整可部署产物。
+
+              ../frontend/templates 目录本就不存在（页面已全部迁到 Vue），一并移除。
+            -->
         </resources>
     </build>
 

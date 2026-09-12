@@ -17,7 +17,9 @@ web/
 ├── admin-login.html    # 后台登录入口（/admin/login）
 ├── admin.html          # 后台管理入口（/admin/**）
 ├── vite.config.js      # 多入口构建 + dev 代理 + dev 环境干净 URL 重写
-├── nginx.conf.example  # 生产 Nginx 配置（history 回退、旧 .html 301、/api 反代）
+├── public/             # 老设计资源源目录（构建时原样复制到 dist/，URL 不变）
+│   ├── index/          #   → /index/**                前台设计资源
+│   └── static/         #   → /static/{admin,auth}/**  后台与认证页设计资源
 ├── tools/serve-dist.mjs# 本机「等价 Nginx」预览服务（无第三方依赖）
 └── src/
     ├── entries/        # 4 个入口的启动脚本
@@ -29,6 +31,11 @@ web/
     ├── utils/          # loadScript（按需加载原有 JS）、format（封面/头像/时间）
     └── views/          # front / auth / admin 页面组件
 ```
+
+> **本工程已自包含**：`npm run build` 产出的 `dist/` 就是完整可部署产物
+> （含 `index/` 与 `static/` 老设计资源）。生产环境只需用 Nginx 托管 `dist/`，
+> 并把 `/api`、`/upload`、`/showimage`、`/showFmImg`、`/file` 与 SEO 根路径
+> 反代到 Spring Boot；配置见仓库根的 `deploy/nginx.conf.example`（Docker 用 `deploy/nginx.docker.conf`）。
 
 ## 开发
 
@@ -46,8 +53,11 @@ npm run build        # 产出 web/dist
 npm run serve:dist   # 本机等价 Nginx 预览（默认 http://localhost:8080）
 ```
 
-生产用 `nginx.conf.example`：静态托管 `web/dist`，`/api|/static|/index|/upload|/showFmImg|/showimage|/file`
-反代到 Spring Boot(8081)，旧 `.html` 地址 301 到干净 URL。
+生产用 `deploy/nginx.conf.example`（Docker 用 `deploy/nginx.docker.conf`）：
+Nginx 静态托管 `dist/`（含 `index/`、`static/` 老设计资源），只把
+`/api`、`/upload`、`/showFmImg`、`/showimage`、`/file` 与
+`/sitemap.xml`、`/robots.txt`、`/rss.xml` 反代到 Spring Boot(8081)；
+旧 `.html` 地址 301 到干净 URL。
 
 ## URL 约定（无 .html）
 

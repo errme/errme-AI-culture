@@ -16,7 +16,16 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const TOOLS = path.dirname(fileURLToPath(import.meta.url))
-const BASE = process.argv[2] || process.env.BASE_URL || 'http://localhost:8080'
+/**
+ * 基础地址：取第一个「看起来像 URL」的参数，而不是死板地取 argv[2]。
+ * 原实现直接读 process.argv[2]，于是文档里写的
+ *   node tools/verify.mjs --parallel 4
+ * 会把 "--parallel" 当成 BASE_URL，报
+ *   Failed to parse URL from --parallel
+ * 现在 URL 可以放在任意位置，也可以完全省略（用默认值）。
+ */
+const BASE = process.argv.slice(2).find(a => /^https?:\/\//i.test(a))
+  || process.env.BASE_URL || 'http://localhost:8080'
 const API = process.env.API_URL || 'http://localhost:8081'
 const SKIP = String(process.env.SKIP || '').split(',').map(s => s.trim()).filter(Boolean)
 /**
@@ -24,6 +33,10 @@ const SKIP = String(process.env.SKIP || '').split(',').map(s => s.trim()).filter
  * 顺序跑一轮约 6 分钟，4 并发约 1.5~2 分钟。
  *   node tools/verify.mjs --parallel 4      # 全量并发
  *   node tools/verify.mjs --parallel 4 --fast   # 只跑最关键的 3 套（日常自查）
+ *
+ * 注意：并发度过高时，多个 headless Chrome 会争抢资源，偶发出现 CDP 端口
+ * 起不来（ECONNREFUSED 127.0.0.1:91xx）而误判失败。8 个套件建议不超过 4，
+ * 出现可疑失败时先单独重跑该套件确认。
  */
 const argv = process.argv.slice(2)
 const PARALLEL = (() => {

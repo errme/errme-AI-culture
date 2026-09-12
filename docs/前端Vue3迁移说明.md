@@ -32,7 +32,7 @@
 | `/admin`（后台首页） | `/admin` |
 | 后台各页 | `/admin/culture`、`/admin/category`、`/admin/announcement`、`/admin/sentence`、`/admin/user`、`/admin/mail` |
 
-301 跳转在**托管层**实现（`web/nginx.conf.example` 与 `web/tools/serve-dist.mjs`），
+301 跳转在**托管层**实现（`deploy/nginx.conf.example` 与 `web/tools/serve-dist.mjs`），
 后端不再保留任何页面路由（旧地址在后端一律 404）。
 
 ## 三、目录与数据流

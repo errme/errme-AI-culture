@@ -8,7 +8,8 @@ WORKDIR /src
 COPY pom.xml .
 RUN mvn -q -B -DskipTests dependency:go-offline || true
 COPY src ./src
-# 后端会从 ../frontend/static 复制静态资源，构建上下文是 backend/，这里用参数允许跳过
+# 说明：pom 已不再打包前端静态资源（老设计资源迁到 web/public/，由 Nginx 托管），
+# 因此这里只需 pom.xml + src 即可完成构建，不依赖构建上下文中的其它目录。
 RUN mvn -q -B -DskipTests package
 
 FROM eclipse-temurin:17-jre

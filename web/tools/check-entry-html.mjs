@@ -17,17 +17,23 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const WEB = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
-const REPO = path.resolve(WEB, '..')
-const STATIC_ROOT = path.join(REPO, 'frontend', 'static')
+/**
+ * 老设计资源的源目录（目录结构整理后）：
+ *   /static/**  ← web/public/static/**      （后台 admin、认证 auth）
+ *   /index/**   ← web/public/index/**       （前台设计资源）
+ * 这些目录会被 `npm run build` 原样复制到 dist/ 下，URL 不变；
+ * 生产由 Nginx 直接托管，不再经过后端。
+ */
+const PUBLIC_ROOT = path.join(WEB, 'public')
 const SIZE_WARN = 150 * 1024
 
 /** core-js / Symbol polyfill 特征串 */
 const POLYFILL_MARKERS = ['__core-js_shared__', 'core-js/modules', 'Symbol.for("v-txt")', 'es6-symbol']
 
-/** 把 URL 映射到本地文件：/static/** -> frontend/static/**，/index/** -> frontend/static/index/** */
+/** 把 URL 映射到本地文件：/static/** -> web/public/static/**，/index/** -> web/public/index/** */
 function localFileFor(url) {
-  if (url.startsWith('/static/')) return path.join(STATIC_ROOT, url.slice('/static/'.length))
-  if (url.startsWith('/index/')) return path.join(STATIC_ROOT, 'index', url.slice('/index/'.length))
+  if (url.startsWith('/static/')) return path.join(PUBLIC_ROOT, 'static', url.slice('/static/'.length))
+  if (url.startsWith('/index/')) return path.join(PUBLIC_ROOT, 'index', url.slice('/index/'.length))
   return null
 }
 

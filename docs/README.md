@@ -18,18 +18,17 @@ culture/
 │   └── vue-frontend/       # 已停用的 Vue 前端（归档，不再使用）
 ├── web/                    # ★ Vue3 前端工程（前后端分离，4 个入口：front/auth/admin/admin-login）
 │   ├── src/                #   api/router/stores/layouts/components/utils/views
+│   ├── public/             #   ★ 老设计资源源目录（构建时复制到 dist/，URL 不变）
+│   │   ├── index/          #     前台设计资源 → /index/**
+│   │   └── static/         #     ├ admin/ 后台设计资源（bootstrap/jquery/图表 + culture-editor.js/.css）
+│   │                       #     └ auth/  登录/注册/忘记密码页设计资源
 │   ├── tools/              #   serve-dist（等价 Nginx）/ e2e-check（端到端验证）/ debug-page
-│   └── nginx.conf.example  #   生产 Nginx 配置（history 回退 + 旧 .html 301 + 接口反代）
-├── frontend/               # 原有设计资源（已无 Thymeleaf 页面，仅 static 供 SPA 引用）
-│   └── static/             #   静态资源
-│       ├── admin/          #     后台设计资源（bootstrap/jquery/图表等）+ culture-editor.js/.css 富文本编辑器
-│       ├── index/          #     前台设计资源（样式/图片/字体）
-│       ├── auth/           #     登录/注册/忘记密码页 + admin-login.html（后台登录页，样式未改动）
-│       └── upload/         #     上传的头像与文化封面
-├── upload/                 # ★ 富文本正文媒体（新建目录，图片/视频与头像封面分离）
-│   └── media/              #   image|video / yyyyMM，URL 前缀 /upload/media/**
-├── backend/                # ★ 后端（Spring Boot Maven 工程）
-│   ├── pom.xml             #   依赖与构建配置（构建时自动打包 frontend/ 资源进 jar）
+├── upload/                 # ★ 运行时上传数据（不入库，由 scripts/backup.sh 备份）
+│   ├── avatar/             #   用户头像
+│   ├── culture/            #   文化封面
+│   └── media/              #   富文本正文媒体：image|video / yyyyMM，URL 前缀 /upload/media/**
+├── backend/                # ★ 后端（Spring Boot Maven 工程，纯 REST API）
+│   ├── pom.xml             #   依赖与构建配置（不再打包前端资源；前端产物由 Nginx 托管）
 │   └── src/main/
 │       ├── java/com/culture/
 │       │   ├── api/        #     REST API：JwtAuthFilter（前后台双 Token 鉴权）/ ApiHome / ApiUser / ApiAdmin / MailAdmin
@@ -99,12 +98,17 @@ mysql --no-defaults --default-character-set=utf8mb4 -uroot -p123456 < docs/sql/0
 说明：01 建库建表（culture_v2），02 从旧库迁移数据；已执行过可跳过。
 邮件配置表（sys_mail_config / sys_mail_account / sys_mail_log）由 01_schema.sql 末尾创建并初始化账号。
 
-### 3. 构建后端（自动把 frontend/ 资源打进 jar）
+### 3. 构建后端（只打包后端自身，不再包含前端资源）
 ```bash
 cd /d/me/AI/culture/backend
-mvn -DskipTests package
+mvn -DskipTests clean package
 ```
 产物：`backend/target/culture-0.0.1-SNAPSHOT.jar`
+
+> 注意加 `clean`：资源目录调整过之后，不带 clean 的 `package` 会把上一次构建
+> 残留在 `target/classes/` 里的旧资源一起打进 jar。
+>
+> 前端资源由 `cd web && npm run build` 产出到 `web/dist`，交给 Nginx 托管。
 
 ### 4. 启动后端
 ```bash
@@ -126,7 +130,7 @@ nohup java -jar target/culture-0.0.1-SNAPSHOT.jar > /tmp/culture.log 2>&1 &
 | http://localhost:8081/swagger-ui.html | Swagger 接口文档 |
 
 > 本机没有 Nginx 时由 `web/tools/serve-dist.mjs` 提供等价能力（静态托管 + history 回退 + 旧 .html 301 + 接口反代）；
-> 生产用 `web/nginx.conf.example`。旧地址（`/static/auth/login.html`、`/toLogin`、`/index.html` 等）统一 301 到新地址。
+> 生产用 `deploy/nginx.conf.example`。旧地址（`/static/auth/login.html`、`/toLogin`、`/index.html` 等）统一 301 到新地址。
 
 ### 6. 登录账号
 - 管理员：`admin` / `123456`（或 `admin@qq.com` / `123456`）—— 从**后台登录页**登录

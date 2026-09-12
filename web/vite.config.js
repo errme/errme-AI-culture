@@ -11,8 +11,24 @@ import { fileURLToPath, URL } from 'node:url'
  */
 const BACKEND = process.env.BACKEND_ORIGIN || 'http://localhost:8081'
 
-/** 需要转发给 Spring Boot 的路径（REST 接口 + 后端托管的静态资源与媒体） */
-const BACKEND_PREFIXES = ['/api', '/static', '/index', '/upload', '/showFmImg', '/showimage', '/file']
+/**
+ * 需要转发给 Spring Boot 的路径（REST 接口 + 后端托管的媒体与上传）。
+ *
+ * 注意这里**不再包含 /static 与 /index**：老设计资源已从 frontend/static 迁到
+ * web/public/ 下，由 Vite(dev) 与 Nginx(prod) 直接托管，不再经过后端。
+ * （Vite 的 server.proxy 优先级高于 publicDir，若仍列出这两个前缀，
+ *   请求会被错误地反代到后端而拿不到 public 下的文件。）
+ */
+const BACKEND_PREFIXES = ['/api', '/upload', '/showFmImg', '/showimage', '/file']
+
+/**
+ * 老设计资源前缀。仅用于 dev 中间件判断「这不是一个页面请求，不要改写成入口 HTML」，
+ * 不参与反代。URL 与迁移前完全一致：
+ *   /index/**            ← web/public/index/**            （前台设计资源）
+ *   /static/admin/**     ← web/public/static/admin/**     （后台设计资源）
+ *   /static/auth/**      ← web/public/static/auth/**      （认证页设计资源）
+ */
+const LEGACY_ASSET_PREFIXES = ['/index', '/static']
 
 /** dev 模式：把整洁 URL 重写到对应入口 HTML（等价于生产环境 Nginx 的 try_files） */
 const ENTRIES = [
@@ -28,7 +44,7 @@ export default defineConfig({
   plugins: [
     vue({
       template: {
-        // 页面里的 /index/… /static/… 图片与样式由后端（Nginx 反代）托管，
+        // 页面里的 /index/… /static/… 引用由 publicDir（dev）与 Nginx（prod）托管，
         // 不参与打包，否则 Rollup 会因找不到文件而构建失败。
         transformAssetUrls: false
       }
@@ -39,7 +55,10 @@ export default defineConfig({
         server.middlewares.use((req, _res, next) => {
           const path = (req.url || '/').split('?')[0]
           const wantsHtml = (req.headers.accept || '').includes('text/html')
-          const isAsset = /\.[a-z0-9]+$/i.test(path) || BACKEND_PREFIXES.some(p => path.startsWith(p))
+          // 后端接口、老设计资源、以及任何带扩展名的路径都不是「页面请求」，不做入口改写
+          const isAsset = /\.[a-z0-9]+$/i.test(path)
+            || BACKEND_PREFIXES.some(p => path.startsWith(p))
+            || LEGACY_ASSET_PREFIXES.some(p => path === p || path.startsWith(p + '/'))
           if (wantsHtml && !isAsset) {
             const hit = ENTRIES.find(e => e.test(path))
             if (hit) req.url = hit.to

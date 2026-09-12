@@ -104,6 +104,6 @@ echo "     后台   http://localhost:$WEB_PORT/admin  （admin / 123456）"
 echo "     后台登录 http://localhost:$WEB_PORT/admin/login"
 echo "     接口   http://localhost:$PORT/api/home"
 echo "     日志   tail -f /tmp/culture.log   /tmp/serve-dist.log"
-echo "     生产   Nginx 配置见 web/nginx.conf.example（静态托管 web/dist）"
+echo "     生产   Nginx 配置见 deploy/nginx.conf.example（静态托管 web/dist）"
 echo "========================================"
 ( cmd //c start "" "http://localhost:$WEB_PORT/" >/dev/null 2>&1 ) || true
