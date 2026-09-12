@@ -18,8 +18,13 @@
 		from sys_user u
 	</sql>
 
+	<!--
+	  全量用户（仅供后台 Excel 导出使用）。
+	  同样排除逻辑删除的记录：否则导出结果会包含已被「删除」的账号，与列表口径不一致。
+	-->
 	<select id="queryAll" resultType="User">
 		<include refid="userColumns"/>
+		where u.deleted = 0
 	</select>
 
 	<select id="findUserByUserName" parameterType="java.lang.String" resultType="User">
@@ -61,8 +66,16 @@
 		update sys_user set avatar=#{headImg} where id=#{id}
 	</update>
 
+	<!--
+	  列表 / 统计的公共条件。
+	  注意：u.deleted = 0 必须放在最外层无条件生效（与 CultureMapper / CategoryMapper /
+	  SentenceMapper / AnnouncementMapper 保持一致）。此前这里漏了这一条，导致「删除用户」
+	  执行成功后（deleted 置 1）该用户仍然出现在列表与总数里、行不消失，
+	  用户看到的现象就是「点了删除没反应」。
+	-->
 	<sql id="whereSql">
 		<where>
+			u.deleted = 0
 			<if test="username != null and username != ''">
 				and u.username like concat('%',#{username},'%')
 			</if>

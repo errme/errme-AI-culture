@@ -22,8 +22,18 @@ public class User {
     @Excel(name = "姓名", width = 25)
     private String username;
 
-    /** 明文密码（仅写入时使用；@JsonIgnore 保证响应中不泄露密码哈希） */
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    /**
+     * 明文密码（<b>仅写入时使用</b>）。
+     *
+     * <p>这里必须用 {@code @JsonProperty(access = WRITE_ONLY)}，不能用 {@code @JsonIgnore}：
+     * 后者会<b>同时</b>屏蔽序列化与反序列化，前端提交的 password 根本绑定不到这个字段，
+     * 服务端拿到 null 后在 BCrypt 编码时抛「rawPassword cannot be null」，
+     * 表现为「后台新增用户永远失败」。</p>
+     *
+     * <p>WRITE_ONLY 只允许入参、绝不出现在任何 JSON 响应中，密码哈希依旧不会泄露；
+     * 且 {@code editSaveUser} 的 SQL 不含 password_hash，编辑用户不会误改密码。</p>
+     */
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     private String password;
 
     @Excel(name = "邮箱", width = 25)

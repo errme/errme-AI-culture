@@ -548,10 +548,14 @@ async function load() {
   loading.value = false
 }
 
-/** 刷新列表：原 $("#userTable").bootstrapTable('refresh') 的等价实现 */
+/**
+ * 刷新列表：原 $("#userTable").bootstrapTable('refresh') 的等价实现。
+ * 返回 load() 的 Promise，调用方（删除保存后的提示链路）需要等刷新真正完成再弹成功提示，
+ * 否则会出现「提示已删除、列表却还是旧数据」的错觉。
+ */
 function refreshList() {
-  if (disposed) return
-  load()
+  if (disposed) return Promise.resolve()
+  return load()
 }
 
 /** 回到第一页并刷新（也是搜索 / 点「刷新」的入口） */
@@ -647,24 +651,30 @@ function edit(id) {
 /** 删除：先二次确认（带用户名，说明不可恢复），确认后删除并给出「撤销」提示 */
 function del(id) {
   const row = findRow(id)
+  const label = (row && (row.username || row.email)) || '该用户'
   confirmDelete({
-    name: (row && (row.username || row.email)) || '该用户',
+    name: label,
     extra: '账号与其资料会被删除，历史评论会保留但不再显示昵称；操作不可恢复。',
-    onConfirm: () => userDelete(id)
-      .then(() => {
+    onConfirm: async () => {
+      // 失败时先给出明确提示，再把异常抛给 settleDialog，让弹窗按「失败」收尾
+      // （原实现用 .catch 吞掉异常，弹窗会误判为成功）。
+      try {
+        await userDelete(id)
+      } catch (err) {
+        if (!disposed) notify((err && err.message) || '删除失败，请稍后重试', 'red')
+        throw err
+      }
+      if (disposed) return
+      // 关键：先等列表刷新完成，再提示成功并刷新列表
+      await refreshList()
+      if (disposed) return
+      dsToast.withUndo(`已删除用户「${label}」`, async () => {
+        await userRestore({ id })
         if (disposed) return
-        refreshList()
-        dsToast.withUndo('用户已删除', async () => {
-          await userRestore({ id })
-          if (disposed) return
-          refreshList()
-          dsToast.success('用户已恢复')
-        })
+        await refreshList()
+        dsToast.success(`已恢复用户「${label}」`)
       })
-      .catch(err => {
-        if (disposed) return
-        notify((err && err.message) || '删除失败', 'red')
-      })
+    }
   })
 }
 
@@ -745,19 +755,28 @@ const doMethod = {
     confirmDelete({
       target: '选中的 ' + delRows.length + ' 个用户',
       extra: '账号与资料会被删除，其历史评论会保留但不再显示昵称；操作不可恢复。',
-      onConfirm: () => Promise.all(delRows.map(row => userDelete(row.id))).then(() => {
+      onConfirm: async () => {
+        try {
+          await Promise.all(ids.map(id => userDelete(id)))
+        } catch (err) {
+          // 批量删除可能「部分成功」：无论成败都先刷新列表，
+          // 让界面反映数据库的真实状态，而不是停留在删除前的旧数据上。
+          if (!disposed) {
+            await refreshList()
+            notify((err && err.message) || '删除失败，请稍后重试', 'red')
+          }
+          throw err
+        }
         if (disposed) return
-        refreshList()
-        dsToast.withUndo('已删除 ' + ids.length + ' 个用户', async () => {
+        await refreshList()
+        if (disposed) return
+        dsToast.withUndo(`已删除 ${ids.length} 个用户`, async () => {
           await userRestore({ ids })
           if (disposed) return
-          refreshList()
-          dsToast.success('已恢复 ' + ids.length + ' 个用户')
+          await refreshList()
+          dsToast.success(`已恢复 ${ids.length} 个用户`)
         })
-      }).catch(err => {
-        if (disposed) return
-        notify((err && err.message) || '删除失败', 'red')
-      })
+      }
     })
   },
   add: function () {

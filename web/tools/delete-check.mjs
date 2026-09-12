@@ -324,37 +324,34 @@ async function main() {
     }
   }
 
-  // ---------- 用户：只验证「点删除会弹统一确认弹窗」，不真的删账号 ----------
-  await goto(BASE + '/admin/user', 4000)
-  const userDialog = await json(`(() => {
-    const isDel = el => {
-      const t = [
-        el.textContent || '',
-        el.getAttribute ? (el.getAttribute('title') || '') : '',
-        el.getAttribute ? (el.getAttribute('data-original-title') || '') : '',
-        el.getAttribute ? (el.getAttribute('onclick') || '') : ''
-      ].join(' ').toLowerCase()
-      return t.indexOf('删除') > -1 || t.indexOf('del(') > -1
-    }
-    const tr = [...document.querySelectorAll('tbody tr')].find(r => r.querySelector('td') && r.textContent.trim().length > 0)
-    if (!tr) return { ok: false, reason: '没有用户数据行' }
-    const cands = [...tr.querySelectorAll('*')].filter(isDel)
-    const btn = cands.length ? cands[cands.length - 1] : null
-    if (!btn) return { ok: false, reason: '行内没有删除控件：' + tr.innerHTML.replace(/\s+/g, ' ').slice(0, 120) }
-    btn.click()
-    return { ok: true }
-  })()`)
-  await sleep(800)
-  const userConfirm = await json(`(() => {
-    const d = document.querySelector('.ds-dialog')
-    if (!d) return { ok: false, reason: '未弹出统一确认弹窗（可能仍是原生 confirm）' }
-    const ok = !!d.querySelector('.ds-btn--danger')
-    const cancel = d.querySelector('.ds-btn--ghost')
-    if (cancel) cancel.click()
-    return { ok, content: (d.querySelector('.ds-dialog__content') || {}).textContent || '', detail: (d.querySelector('.ds-dialog__detail') || {}).textContent || '' }
-  })()`)
-  record('用户删除：走统一二次确认（本轮只验证弹窗，点取消不留副作用）',
-    userDialog.ok && userConfirm.ok, `${userConfirm.content || userDialog.reason || ''} ${userConfirm.detail ? '| ' + userConfirm.detail.slice(0, 24) : ''}`)
+  // ---------- 用户：造一个真实账号 → 真实删除 → 断言「行消失 + 接口已删」 ----------
+  //
+  // 为什么这里必须真删（原实现只点开弹窗就点取消）：
+  //   UserMapper.xml 的列表/统计 SQL 曾漏掉 `u.deleted = 0`，删除接口把 deleted 置 1 后，
+  //   该用户依然出现在列表与总数里、行不消失 —— 用户看到的现象就是「点了删除没反应」。
+  //   只验证弹窗的用例永远发现不了这种「接口成功但界面没变化」的问题。
+  const probeUser = 'zzdel' + stamp
+  await deleteCase({
+    label: '用户',
+    page: '/admin/user',
+    rowText: probeUser,
+    create: async n => {
+      const r = await api('POST', '/api/admin/user/save', {
+        username: n, email: n + '@test.local', tel: '13800000000', password: '123456', sex: 1
+      })
+      // /user/save 不回传 id，按用户名回查一次（与页面新增后的 resolveUserId 同一策略）
+      const list = await api('GET', '/api/admin/user/list?page=1&pageSize=50&username=' + encodeURIComponent(n))
+      const rows = (list.data && list.data.rows) || []
+      const hit = rows.find(x => x.username === n)
+      return { ok: r && r.code === 200, id: hit && hit.id, error: (r && r.message) || '未知' }
+    },
+    stillExists: async n => {
+      const r = await api('GET', '/api/admin/user/list?page=1&pageSize=50&username=' + encodeURIComponent(n))
+      const rows = (r.data && r.data.rows) || []
+      return rows.some(x => x.username === n)
+    },
+    cleanup: id => api('POST', '/api/admin/user/delete', { id })
+  })
 
   // ---------- 邮件账号：有数据则验证弹窗为统一样式（点取消） ----------
   await goto(BASE + '/admin/mail', 4000)
