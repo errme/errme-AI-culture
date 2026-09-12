@@ -13,6 +13,7 @@ import com.culture.service.CultureVersionService;
 import com.culture.service.RecommendService;
 import com.culture.service.ThumbnailService;
 import com.culture.util.CommonUtil;
+import com.culture.util.HtmlSanitizer;
 import com.culture.util.PageList;
 import com.culture.util.SearchUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -87,7 +88,39 @@ public class CultureServiceImpl implements CultureService {
         }
         if (culture.getView() == null) culture.setView(0L);
         if (culture.getCreateTime() == null) culture.setCreateTime(new Date());
+        sanitizeRichFields(culture);
         return cultureMapper.addCulture(culture);
+    }
+
+    /**
+     * 文化正文与描述的入库清洗（<b>防存储型 XSS</b>）。
+     *
+     * <p>为什么后台录入的内容也要清洗：项目带有按钮级权限的 RBAC，
+     * 「内容编辑」权限可以下放给非管理员角色。一旦下放，拥有该权限的人填入
+     * {@code <img src=x onerror=...>} 就会在<b>所有访客</b>（以及真正的管理员）
+     * 浏览器里执行 —— 前台 {@code CultureDetailView} / {@code HomeView} 都是用
+     * {@code v-html} 直接渲染这两个字段的。</p>
+     *
+     * <p>两级处理：</p>
+     * <ul>
+     *   <li>{@code desc}（一句话描述，varchar(500)）→ 整体转义为纯文本；</li>
+     *   <li>{@code info}（富文本正文）→ 走富文本白名单，保留图片/表格/视频嵌入与
+     *       对齐字号颜色，但丢弃全部脚本与事件属性。</li>
+     * </ul>
+     *
+     * <p>放在 Service 层而不是 Controller：{@code addCulture} / {@code editSaveCulture}
+     * 是对外唯一的内容写入口，放在这里可以覆盖所有调用方（含将来的新入口），
+     * 不会因为新增一个接口就绕过清洗。</p>
+     */
+    private static void sanitizeRichFields(Culture culture) {
+        if (culture == null) return;
+        if (culture.getDesc() != null) {
+            // description 列是 varchar(500)，按列宽截断
+            culture.setDesc(HtmlSanitizer.sanitizePlainText(culture.getDesc(), 500));
+        }
+        if (culture.getInfo() != null) {
+            culture.setInfo(HtmlSanitizer.sanitizeRichText(culture.getInfo()));
+        }
     }
 
     @Override
@@ -162,6 +195,9 @@ public class CultureServiceImpl implements CultureService {
         if (culture != null && culture.getId() != null) {
             cultureVersionService.snapshotBeforeSave(culture.getId(), operatorId, operatorName);
         }
+        // 注意顺序：快照必须在清洗之前（快照要记录「修改前」的原始内容，
+        // 且清洗只作用于本次提交的新值，不影响历史版本）。
+        sanitizeRichFields(culture);
         cultureMapper.editSaveCulture(culture);
     }
 

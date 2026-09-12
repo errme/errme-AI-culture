@@ -95,6 +95,83 @@ public final class SelfTest {
         check("toPlainText 去掉标签保留文字",
             plain != null && plain.contains("旗袍") && plain.contains("传统服饰") && !plain.contains("<"),
             "结果=" + plain);
+
+        richText();
+    }
+
+    /**
+     * 富文本策略（后台文化正文）：既要挡住脚本，又不能把排版吃掉。
+     * 回归背景：后台正文原先完全不清洗，而前台用 v-html 渲染 →
+     * 拥有「内容编辑」权限的角色可写入 <img onerror> 在所有访客浏览器执行。
+     */
+    private static void richText() {
+        // ---- 1) 攻击载荷必须被清除 ----
+        String[] payloads = {
+            "<p>正常</p><script>alert(1)</script>",
+            "<img src=x onerror=alert(1)>",
+            "<img src=\"javascript:alert(1)\">",
+            "<p onclick=\"alert(1)\">点我</p>",
+            "<a href=\"javascript:alert(1)\">链接</a>",
+            "<iframe src=\"javascript:alert(1)\"></iframe>",
+            "<iframe srcdoc=\"<script>alert(1)</script>\"></iframe>",
+            "<div style=\"background:url(javascript:alert(1))\">x</div>",
+            "<div style=\"position:fixed;top:0;left:0;width:100vw;height:100vh\">覆盖层</div>",
+            "<span style=\"behavior:url(x.htc)\">x</span>",
+            "<svg onload=alert(1)></svg>",
+            "<object data=\"evil.swf\"></object>",
+            "<a href=\"  java\nscript:alert(1)\">换行绕过</a>"
+        };
+        String[] forbidden = {"<script", "onerror", "onload", "onclick", "javascript:", "srcdoc",
+                              "<svg", "<object", "position:fixed", "behavior:", "url("};
+        StringBuilder leaks = new StringBuilder();
+        for (String raw : payloads) {
+            String out = HtmlSanitizer.sanitizeRichText(raw);
+            if (out == null) { leaks.append("null;"); continue; }
+            String lower = out.toLowerCase();
+            for (String f : forbidden) {
+                if (lower.contains(f)) leaks.append(f).append(" 残留于[").append(raw).append("]; ");
+            }
+        }
+        check("富文本：脚本/事件/伪协议/CSS 覆盖层全部被剔除（13 组载荷）", leaks.length() == 0, leaks.toString());
+
+        // ---- 2) 正常排版必须保留（否则清洗会把线上正文改坏）----
+        String rich = "<p class=\"ql-align-center\" style=\"text-align: center;\">"
+                + "<strong>加粗</strong><img src=\"/upload/media/image/202609/a.jpg\" width=\"300\">"
+                + "</p><table><tbody><tr><td colspan=\"2\">表格</td></tr></tbody></table>"
+                + "<iframe class=\"ql-video\" src=\"https://player.bilibili.com/player.html?aid=1\"></iframe>";
+        String kept = HtmlSanitizer.sanitizeRichText(rich);
+        String keptLower = kept == null ? "" : kept.toLowerCase();
+        boolean keepOk = keptLower.contains("ql-align-center")      // Quill 对齐 class
+                && keptLower.contains("text-align")                 // 行内样式
+                && keptLower.contains("<strong>")
+                && keptLower.contains("<img") && keptLower.contains("/upload/media/image/202609/a.jpg")
+                && keptLower.contains("<table") && keptLower.contains("colspan")
+                && keptLower.contains("<iframe") && keptLower.contains("player.bilibili.com");
+        check("富文本：对齐/图片/表格/视频嵌入等排版完整保留", keepOk, "结果=" + kept);
+
+        // ---- 3) 严格策略不能因为改造而放宽 ----
+        String strictKept = HtmlSanitizer.sanitize(rich);
+        check("严格策略仍然不放开 img/table/iframe",
+            strictKept != null && !strictKept.contains("<img") && !strictKept.contains("<table")
+                    && !strictKept.contains("<iframe"),
+            "结果=" + strictKept);
+
+        // ---- 3b) 属性被剔除后已经没有 src 的图片，整条丢弃（否则页面留破图）----
+        String noSrcImg = HtmlSanitizer.sanitizeRichText("<p>文字</p><img src=x onerror=alert(1)>");
+        check("富文本：无 src 的图片整条丢弃（不留空的 <img>）",
+            noSrcImg != null && !noSrcImg.contains("<img"),
+            "结果=" + noSrcImg);
+
+        // ---- 4) 纯文本字段（文化 desc）整体转义 ----
+        String desc = HtmlSanitizer.sanitizePlainText("摘要<img src=x onerror=alert(1)>结束", 500);
+        check("sanitizePlainText：标签被剥掉且无残留尖括号",
+            desc != null && !desc.contains("<") && !desc.contains("onerror"),
+            "结果=" + desc);
+
+        // ---- 5) 长度截断 ----
+        String huge = new String(new char[300_000]).replace('\0', 'a');
+        check("富文本超长内容按上限截断", HtmlSanitizer.sanitizeRichText(huge).length() <= 200_000,
+            "长度=" + HtmlSanitizer.sanitizeRichText(huge).length());
     }
 
     private static void search() {
