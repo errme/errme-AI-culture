@@ -132,4 +132,6 @@ npm run build      # 产出 web/dist
 - 逻辑删除（`deleted=1`）的记录不会出现在列表、前台热门/最新与详情页；
 - 密码哈希不出现在任何 JSON 响应中；
 - 生产环境务必通过 `AUTH_JWT_FRONT_SECRET`、`AUTH_JWT_ADMIN_SECRET` 注入两套随机密钥；
-- 详见 `docs/README.md`、`docs/前端Vue3迁移说明.md`、`docs/DB_MIGRATION.md`。
+- 详见 `docs/改造总结.md`（本轮四类改造的改动与验证证据）、
+  `docs/SpringBoot3升级说明.md`（SB3 升级的全部破坏性变更与踩坑）、
+  `docs/README.md`、`docs/前端Vue3迁移说明.md`、`docs/DB_MIGRATION.md`。
