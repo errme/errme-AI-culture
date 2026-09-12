@@ -306,6 +306,54 @@ async function main() {
     rendered.ok && matchesApi && (rendered.links || []).every(l => l.target === '_blank'),
     rendered.ok ? rendered.links.map(l => `${l.text}→${l.href}`).join(' | ') : rendered.reason)
 
+  /* ---------------- 10. 后台「系统设置」（sys_config）----------------
+   * 验证「原先写死在配置文件的项已能在后台改、且改完即时生效」。
+   * 全程只读 + 发一次会被拒绝的非法值，**不修改任何真实配置**，避免污染环境。
+   */
+  const cfg = await api('GET', '/api/admin/config/list')
+  const cfgData = (cfg.body && cfg.body.data) || {}
+  const cfgItems = cfgData.items || []
+  record('系统设置接口返回配置项与分组（配置项、分组、类型均由数据库驱动）',
+    cfgItems.length >= 10 && !!cfgData.groups && !!cfgData.groupLabels,
+    `共 ${cfgData.total} 项，分组 ${Object.keys(cfgData.groups || {}).length} 个：` +
+    Object.keys(cfgData.groupLabels || {}).slice(0, 6).join('/'))
+
+  // 校验：非法值应被拒绝，且错误信息里带数据库里的中文名与范围
+  const badSave = await api('POST', '/api/admin/config/save', { values: { 'code.expire-minutes': '99999' } })
+  const badMsg = String((badSave.body && badSave.body.message) || '')
+  record('非法配置被拒绝且提示含中文名与范围（校验规则来自数据库）',
+    badSave.status === 200 && badMsg.indexOf('不能大于') > -1,
+    `HTTP ${badSave.status} ${badMsg.slice(0, 60)}`)
+
+  // 「改完即时生效」：改 RSS 标题依赖的 site.name，验证外部输出立刻变化，再恢复默认
+  const beforeRss = await (await fetch(API + '/rss.xml')).text()
+  const beforeName = (beforeRss.match(/<title>([^<]*)<\/title>/) || [])[1] || ''
+  const probe = 'E2E_PROBE_' + stamp
+  const setR = await api('POST', '/api/admin/config/save', { values: { 'site.name': probe } })
+  const midRss = await (await fetch(API + '/rss.xml')).text()
+  const midName = (midRss.match(/<title>([^<]*)<\/title>/) || [])[1] || ''
+  await api('POST', '/api/admin/config/reset', { key: 'site.name' })
+  const afterRss = await (await fetch(API + '/rss.xml')).text()
+  const afterName = (afterRss.match(/<title>([^<]*)<\/title>/) || [])[1] || ''
+  record('系统设置改完即时生效（无需重启）：RSS 标题随 site.name 变化并已恢复',
+    setR.status === 200 && midName === probe && afterName === beforeName,
+    `改前=${beforeName} 改后=${midName} 恢复后=${afterName}`)
+
+  // 页面渲染：/admin/settings 应展示分组卡片与输入控件
+  await goto(BASE + '/admin/settings', 3500)
+  const cfgUi = await json(`(() => {
+    const cards = [...document.querySelectorAll('.ad-settings-card')]
+    const controls = document.querySelectorAll('.ad-field input, .ad-field select')
+    return {
+      cards: cards.length,
+      controls: controls.length,
+      titles: cards.map(c => (c.querySelector('.ad-card__title') || {}).textContent || '').map(s => s.trim())
+    }
+  })()`)
+  record('后台「系统设置」页按分组渲染配置表单',
+    cfgUi.cards >= 3 && cfgUi.controls >= 10,
+    `分组卡片=${cfgUi.cards} 输入控件=${cfgUi.controls} 分组=${(cfgUi.titles || []).join('/')}`)
+
   /* ---------------- 10. 收尾 ---------------- */
   for (const fn of cleanup.reverse()) { try { await fn() } catch (e) { /* 忽略 */ } }
   console.log('\n测试数据已清理')

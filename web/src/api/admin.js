@@ -37,6 +37,14 @@ export const sentenceDelete = id => adminHttp.post('/admin/sentence/delete', { i
  * 关闭的工具不会出现在返回结果里。详见后端 DevToolsController。 */
 export const devTools = () => adminHttp.get('/admin/devtools')
 
+/* ============ 系统设置（sys_config）============
+ * 配置项清单、分组、类型、允许范围与说明文案全部由后端给出，
+ * 前端不维护任何「key → 分组/标签」对照表（那也是写死）。
+ * 保存后后端立即刷新缓存，改完即时生效、无需重启。 */
+export const configList = () => adminHttp.get('/admin/config/list')
+export const configSave = values => adminHttp.post('/admin/config/save', { values })
+export const configReset = key => adminHttp.post('/admin/config/reset', { key })
+
 /* ============ 用户管理 ============ */
 export const userList = params => adminHttp.get('/admin/user/list', { params })
 export const userSave = data => adminHttp.post('/admin/user/save', data)

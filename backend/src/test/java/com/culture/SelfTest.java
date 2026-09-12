@@ -214,7 +214,10 @@ public final class SelfTest {
     private static void jwt() {
         String frontSecret = "culture-front-secret-key-please-change-0123456789abcdefghijklmnopqrstuvwxyz";
         String adminSecret = "culture-admin-secret-key-please-change-0123456789abcdefghijklmnopqrstuvwxyz";
-        JwtService svc = new JwtService(frontSecret, adminSecret, 24, 8);
+        // 传入一个「未接数据库」的 ConfigService：所有配置读取都会回退到构造参数里的默认值，
+        // 因此这里测的正是 application.yml 兜底路径（也正是没执行建表脚本时的实际行为）。
+        JwtService svc = new JwtService(frontSecret, adminSecret,
+                new com.culture.service.ConfigService(null), 24, 8);
 
         long frontTtl = svc.ttlMillis(JwtService.Scope.FRONT);
         long adminTtl = svc.ttlMillis(JwtService.Scope.ADMIN);

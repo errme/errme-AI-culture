@@ -40,11 +40,29 @@ public class FileUpload {
     @Value("${editor.upload.path}")
     private String editorPath;
 
+    /**
+     * 上传大小上限的兜底值（来自 application.yml）。
+     * 实际取值优先读数据库（后台「系统设置 → 上传限制」），改完即时生效。
+     */
     @Value("${editor.upload.max-image-mb:10}")
-    private int editorMaxImageMb;
+    private int editorMaxImageMbFallback;
 
     @Value("${editor.upload.max-video-mb:200}")
-    private int editorMaxVideoMb;
+    private int editorMaxVideoMbFallback;
+
+    /** 系统配置来源（上传上限等运行期可变项） */
+    @Autowired
+    private com.culture.service.ConfigService configService;
+
+    /** 单张图片上限（MB）：后台可改，未配置时回退 application.yml */
+    private int editorMaxImageMb() {
+        return configService.getInt("upload.max-image-mb", editorMaxImageMbFallback);
+    }
+
+    /** 单个视频上限（MB）：后台可改，未配置时回退 application.yml */
+    private int editorMaxVideoMb() {
+        return configService.getInt("upload.max-video-mb", editorMaxVideoMbFallback);
+    }
 
     /** 用于「本人或管理员」鉴权判断（头像上传） */
     @org.springframework.beans.factory.annotation.Autowired
@@ -138,7 +156,7 @@ public class FileUpload {
             long targetUserId = (isAdmin && id != null) ? id.longValue() : callerId;
 
             // ===== 类型与内容校验（原实现不做任何校验，可上传 html/脚本造成 XSS）=====
-            String suffixName = requireImage(file, editorMaxImageMb * 1024L * 1024L);
+            String suffixName = requireImage(file, editorMaxImageMb() * 1024L * 1024L);
 
             String uuidString = UUID.randomUUID().toString();
             //新文件名
@@ -223,7 +241,7 @@ public class FileUpload {
             if (cultureService.findDetailById(id.longValue()) == null) {
                 return new AjaxResult("文化不存在：" + id);
             }
-            String suffixName = requireImage(file, editorMaxImageMb * 1024L * 1024L);
+            String suffixName = requireImage(file, editorMaxImageMb() * 1024L * 1024L);
             String uuidString = UUID.randomUUID().toString();
             String newFileName = uuidString + suffixName;
 
@@ -399,10 +417,10 @@ public class FileUpload {
                         : "图片仅支持 jpg/jpeg/png/gif/webp/bmp 格式");
                 return result;
             }
-            long maxBytes = (long) (video ? editorMaxVideoMb : editorMaxImageMb) * 1024 * 1024;
+            long maxBytes = (long) (video ? editorMaxVideoMb() : editorMaxImageMb()) * 1024 * 1024;
             if (file.getSize() > maxBytes) {
                 result.put("errno", 1);
-                result.put("message", "文件超过上限 " + (video ? editorMaxVideoMb : editorMaxImageMb) + "MB");
+                result.put("message", "文件超过上限 " + (video ? editorMaxVideoMb() : editorMaxImageMb()) + "MB");
                 return result;
             }
             if (!editorPath.endsWith("/") && !editorPath.endsWith("\\")) {

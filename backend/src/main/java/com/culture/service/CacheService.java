@@ -62,25 +62,46 @@ public class CacheService {
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
-    private final boolean enabled;
-    private final long ttlSeconds;
+
+    /** 缓存开关与 TTL 的兜底值（来自 application.yml）。实际取值优先读数据库，见下方方法。 */
+    private final boolean enabledFallback;
+    private final long ttlSecondsFallback;
+
+    /** 系统配置来源（缓存开关 / TTL 可在后台「系统设置 → 缓存」调整，改完即时生效） */
+    private final ConfigService configService;
 
     public CacheService(ObjectProvider<StringRedisTemplate> redisProvider,
                         ObjectMapper objectMapper,
+                        ConfigService configService,
                         @Value("${app.cache.enabled:true}") boolean enabled,
                         @Value("${app.cache.ttl-seconds:60}") long ttlSeconds) {
         // 用 ObjectProvider：本机/测试环境没有 Redis 时也能正常启动（本项目 Redis 是可选依赖）
         this.redisTemplate = redisProvider.getIfAvailable();
         this.objectMapper = objectMapper;
-        this.enabled = enabled;
-        this.ttlSeconds = ttlSeconds > 0 ? ttlSeconds : 60L;
+        this.configService = configService;
+        this.enabledFallback = enabled;
+        this.ttlSecondsFallback = ttlSeconds > 0 ? ttlSeconds : 60L;
         if (!enabled) {
-            log.info("[cache] 读缓存已关闭（app.cache.enabled=false），所有请求直查数据库");
+            log.info("[cache] 读缓存默认关闭（app.cache.enabled=false）；后台「系统设置」可再开启");
         } else if (redisTemplate == null) {
             log.info("[cache] 未检测到 Redis，读缓存自动降级为直查数据库");
         } else {
-            log.info("[cache] 读缓存已启用，TTL={}s", this.ttlSeconds);
+            log.info("[cache] 读缓存已启用，TTL={}s（可在后台「系统设置 → 缓存」调整）", this.ttlSecondsFallback);
         }
+    }
+
+    /**
+     * 缓存是否启用：每次调用都从 ConfigService 读（内存缓存、无查库开销），
+     * 因此后台关掉缓存后立刻直查数据库，不需要重启。
+     */
+    private boolean enabled() {
+        return configService.getBool("cache.enabled", enabledFallback) && redisTemplate != null;
+    }
+
+    /** 缓存 TTL（秒）：同样每次读取，后台改完即时生效 */
+    private long ttlSeconds() {
+        long v = configService.getInt("cache.ttl-seconds", (int) ttlSecondsFallback);
+        return v > 0 ? v : ttlSecondsFallback;
     }
 
     /**
@@ -91,7 +112,7 @@ public class CacheService {
      * @param valueType  反序列化目标类型（Jackson 的 {@code TypeReference}，支持泛型）
      */
     public <T> T getOrLoad(String key, Supplier<T> loader, com.fasterxml.jackson.core.type.TypeReference<T> valueType) {
-        return getOrLoad(key, ttlSeconds, loader, valueType);
+        return getOrLoad(key, ttlSeconds(), loader, valueType);
     }
 
     /** 同 {@link #getOrLoad(String, Supplier, com.fasterxml.jackson.core.type.TypeReference)}，但可指定 TTL */
@@ -120,7 +141,7 @@ public class CacheService {
         try {
             // 注意：value 为 null 时也要占位（存空串），否则空结果会每次都回源（缓存穿透）
             String json = value == null ? "" : objectMapper.writeValueAsString(value);
-            redisTemplate.opsForValue().set(key, json, ttl > 0 ? ttl : ttlSeconds, TimeUnit.SECONDS);
+            redisTemplate.opsForValue().set(key, json, ttl > 0 ? ttl : ttlSeconds(), TimeUnit.SECONDS);
         } catch (Exception e) {
             log.warn("[cache] 写入失败（不影响本次返回）。key={}, err={}", key, e.toString());
         }
@@ -140,7 +161,7 @@ public class CacheService {
      */
     public <T> T getOrLoadMenu(long userId, Supplier<T> loader,
                               com.fasterxml.jackson.core.type.TypeReference<T> valueType) {
-        return getOrLoad("culture:cache:menu:v" + menuEpoch() + ":user:" + userId, ttlSeconds, loader, valueType);
+        return getOrLoad("culture:cache:menu:v" + menuEpoch() + ":user:" + userId, ttlSeconds(), loader, valueType);
     }
 
     /** 读当前菜单缓存版本号（Redis 不可用/读取失败时返回 "0"，即退化为「不缓存」语义的直接查询） */
@@ -195,7 +216,7 @@ public class CacheService {
     }
 
     private boolean cacheUsable() {
-        return enabled && redisTemplate != null;
+        return enabled();
     }
 
     private void safeDelete(String key) {

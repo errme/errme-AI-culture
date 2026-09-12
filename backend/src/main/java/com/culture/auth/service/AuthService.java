@@ -38,26 +38,48 @@ public class AuthService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SecureRandom random = new SecureRandom();
 
-    private final int codeExpireMinutes;
-    private final int resendSeconds;
+    /**
+     * 验证码策略的兜底值（来自 application.yml）。
+     *
+     * <p>实际取值优先读数据库（后台「系统设置 → 验证码策略」），
+     * 这里的 {@code @Value} 只是「sys_config 没有该键 / 数据库不可用」时的回退，
+     * 保证没执行建表脚本时行为与改造前一致。</p>
+     */
+    private final int codeExpireMinutesFallback;
+    private final int resendSecondsFallback;
     private final boolean returnCodeInResponse;
+
+    /** 系统配置来源（验证码策略等运行期可变项） */
+    private final com.culture.service.ConfigService configService;
 
     public AuthService(UserMapper userMapper,
                        JwtService jwtService,
                        MailService mailService,
                        RoleService roleService,
                        StringRedisTemplate redisTemplate,
-                       @Value("${app.code.expire-minutes}") int codeExpireMinutes,
-                       @Value("${app.code.resend-seconds}") int resendSeconds,
+                       com.culture.service.ConfigService configService,
+                       @Value("${app.code.expire-minutes:5}") int codeExpireMinutesFallback,
+                       @Value("${app.code.resend-seconds:60}") int resendSecondsFallback,
                        @Value("${app.code.return-in-response:false}") boolean returnCodeInResponse) {
         this.userMapper = userMapper;
         this.jwtService = jwtService;
         this.mailService = mailService;
         this.roleService = roleService;
         this.redisTemplate = redisTemplate;
-        this.codeExpireMinutes = codeExpireMinutes;
-        this.resendSeconds = resendSeconds;
+        this.configService = configService;
+        this.codeExpireMinutesFallback = codeExpireMinutesFallback;
+        this.resendSecondsFallback = resendSecondsFallback;
         this.returnCodeInResponse = returnCodeInResponse;
+    }
+
+    /** 验证码有效期（分钟）：后台可改，未配置时回退 application.yml */
+    private int codeExpireMinutes() {
+        return configService.getInt("code.expire-minutes", codeExpireMinutesFallback);
+    }
+
+    /** 验证码重发间隔（秒）：后台可改，未配置时回退 application.yml */
+    private int resendSeconds() {
+        return configService.getInt("code.resend-seconds", resendSecondsFallback);
     }
 
     private String codeKey(String email) { return "vc:" + email; }
@@ -88,17 +110,17 @@ public class AuthService {
         // 60 秒重发限制（Redis）
         if (Boolean.TRUE.equals(redisTemplate.hasKey(resendKey(normalized)))) {
             Long ttl = redisTemplate.getExpire(resendKey(normalized), TimeUnit.SECONDS);
-            throw new BusinessException("请 " + Math.max(1, ttl == null ? resendSeconds : ttl) + " 秒后再试");
+            throw new BusinessException("请 " + Math.max(1, ttl == null ? resendSeconds() : ttl) + " 秒后再试");
         }
 
         String code = String.format("%06d", random.nextInt(1_000_000));
-        redisTemplate.opsForValue().set(codeKey(normalized), code, codeExpireMinutes, TimeUnit.MINUTES);
-        redisTemplate.opsForValue().set(resendKey(normalized), "1", resendSeconds, TimeUnit.SECONDS);
+        redisTemplate.opsForValue().set(codeKey(normalized), code, codeExpireMinutes(), TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set(resendKey(normalized), "1", resendSeconds(), TimeUnit.SECONDS);
 
         // 异步发送验证码邮件，接口立即返回；失败仅记日志（验证码仍在 Redis，便于本地联调）
         CompletableFuture.runAsync(() -> {
             try {
-                mailService.sendCode(normalized, code, codeExpireMinutes);
+                mailService.sendCode(normalized, code, codeExpireMinutes());
             } catch (Exception ex) {
                 System.out.println("[落款·邮件发送失败] " + normalized + " : " + ex.getMessage());
             }
@@ -106,8 +128,8 @@ public class AuthService {
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("email", normalized);
-        data.put("expireMinutes", codeExpireMinutes);
-        data.put("resendSeconds", resendSeconds);
+        data.put("expireMinutes", codeExpireMinutes());
+        data.put("resendSeconds()", resendSeconds());
         // 本地联调（app.code.return-in-response=true）：验证码直接返回，前端自动填入；
         // 生产环境请关闭，验证码只通过邮件送达。
         if (returnCodeInResponse) {

@@ -50,23 +50,47 @@ public class JwtService {
 
     private final SecretKey frontKey;
     private final SecretKey adminKey;
-    private final long frontExpireMillis;
-    private final long adminExpireMillis;
+
+    /**
+     * 登录有效期的兜底值（小时，来自 application.yml）。
+     * 实际取值优先读数据库（后台「系统设置 → 登录有效期」），这里只作回退。
+     *
+     * <p>注意：有效期原先在构造时就被换算成毫秒常量，导致改了配置必须重启才生效；
+     * 现在改成<b>每次签发/解析时读取</b>，后台改完即时生效。</p>
+     */
+    private final long frontExpireHoursFallback;
+    private final long adminExpireHoursFallback;
+
+    /** 系统配置来源（登录有效期等运行期可变项） */
+    private final com.culture.service.ConfigService configService;
 
     public JwtService(@Value("${app.jwt.front-secret}") String frontSecret,
                       @Value("${app.jwt.admin-secret}") String adminSecret,
+                      com.culture.service.ConfigService configService,
                       @Value("${app.jwt.front-expire-hours:24}") long frontExpireHours,
                       @Value("${app.jwt.admin-expire-hours:8}") long adminExpireHours) {
         this.frontKey = Keys.hmacShaKeyFor(frontSecret.getBytes(StandardCharsets.UTF_8));
         this.adminKey = Keys.hmacShaKeyFor(adminSecret.getBytes(StandardCharsets.UTF_8));
-        this.frontExpireMillis = frontExpireHours * 3600 * 1000;
-        this.adminExpireMillis = adminExpireHours * 3600 * 1000;
+        this.configService = configService;
+        this.frontExpireHoursFallback = frontExpireHours;
+        this.adminExpireHoursFallback = adminExpireHours;
+    }
+
+    /** 指定作用域的令牌有效期（毫秒）：后台可改，未配置时回退 application.yml */
+    private long expireMillis(Scope scope) {
+        boolean admin = scope == Scope.ADMIN;
+        int fallbackHours = (int) (admin ? adminExpireHoursFallback : frontExpireHoursFallback);
+        int hours = configService.getInt(
+                admin ? "jwt.admin-expire-hours" : "jwt.front-expire-hours", fallbackHours);
+        // 兜底：配置被改坏（0 或负数）时至少给 1 小时，避免签发出「即刻过期」的令牌
+        if (hours <= 0) hours = Math.max(1, fallbackHours);
+        return hours * 3600L * 1000L;
     }
 
     /** 签发令牌：subject = 用户ID，附带 email / scope / userType 声明 */
     public String generateToken(Long userId, String email, Scope scope) {
         Date now = new Date();
-        long expire = (scope == Scope.ADMIN ? adminExpireMillis : frontExpireMillis);
+        long expire = expireMillis(scope);
         return Jwts.builder()
                 .setSubject(String.valueOf(userId))
                 .claim("email", email)
@@ -106,7 +130,7 @@ public class JwtService {
 
     /** 该作用域令牌的总有效期（毫秒），用于「滑动续期」判断剩余比例 */
     public long ttlMillis(Scope scope) {
-        return scope == Scope.ADMIN ? adminExpireMillis : frontExpireMillis;
+        return expireMillis(scope);
     }
 
     /** 作用域对应的签名密钥：前后台令牌互不通用 */

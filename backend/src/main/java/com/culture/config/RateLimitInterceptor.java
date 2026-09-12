@@ -1,5 +1,6 @@
 package com.culture.config;
 
+import com.culture.service.ConfigService;
 import com.culture.util.SimpleRateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,32 +30,63 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(RateLimitInterceptor.class);
 
-    /** 路径前缀 → 每分钟上限（顺序匹配，先命中的生效） */
-    private static final Map<String, Integer> LIMITS = new LinkedHashMap<>();
+    /**
+     * 路径前缀 → 配置键（顺序匹配，先命中的生效）。
+     *
+     * <p><b>为什么"哪些接口需要限流"仍写在代码里、而"限流阈值"放进数据库：</b></p>
+     * <ul>
+     *   <li>「这个接口是重操作（全表扫描 / 不可逆 / 覆盖式写入）」属于<b>代码语义</b>，
+     *       新增一个重接口时本来就要改代码，放在这里能让它和接口一起被 review；</li>
+     *   <li>而「每分钟允许多少次」是纯运营参数，会随流量、攻击情况、业务节奏变化，
+     *       因此放进 sys_config，由后台「系统设置 → 接口限流」维护，改完即时生效，
+     *       不需要改配置重启。原先这里是把阈值硬编码在静态 Map 里的。</li>
+     * </ul>
+     */
+    private static final Map<String, String> LIMITED_PATHS = new LinkedHashMap<>();
 
     static {
-        LIMITS.put("/api/admin/culture/export", 5);      // CSV 导出：全表流式扫描，最重
-        LIMITS.put("/api/admin/recycle/purge", 20);      // 彻底删除：不可逆
-        LIMITS.put("/api/admin/culture/rollback", 20);   // 版本回滚
-        LIMITS.put("/api/admin/permission/role", 30);    // 权限覆盖写
-        LIMITS.put("/api/admin/permission/button", 30);
-        LIMITS.put("/api/search", 60);                   // 全站搜索
+        LIMITED_PATHS.put("/api/admin/culture/export", "limit.export-per-minute");      // CSV 导出：全表流式扫描，最重
+        LIMITED_PATHS.put("/api/admin/recycle/purge", "limit.purge-per-minute");        // 彻底删除：不可逆
+        LIMITED_PATHS.put("/api/admin/culture/rollback", "limit.rollback-per-minute");  // 版本回滚
+        LIMITED_PATHS.put("/api/admin/permission/role", "limit.permission-per-minute"); // 权限覆盖写
+        LIMITED_PATHS.put("/api/admin/permission/button", "limit.permission-per-minute");
+        LIMITED_PATHS.put("/api/search", "limit.search-per-minute");                    // 全站搜索
+    }
+
+    /** 配置项缺失/数据库不可用时的兜底阈值（与 docs/sql/13_sys_config.sql 的默认值一致） */
+    private static final Map<String, Integer> FALLBACK_LIMITS = new LinkedHashMap<>();
+
+    static {
+        FALLBACK_LIMITS.put("limit.export-per-minute", 5);
+        FALLBACK_LIMITS.put("limit.purge-per-minute", 20);
+        FALLBACK_LIMITS.put("limit.rollback-per-minute", 20);
+        FALLBACK_LIMITS.put("limit.permission-per-minute", 30);
+        FALLBACK_LIMITS.put("limit.search-per-minute", 60);
     }
 
     private final SimpleRateLimiter limiter;
+    private final ConfigService configService;
 
-    public RateLimitInterceptor(ObjectProvider<StringRedisTemplate> redisProvider) {
+    public RateLimitInterceptor(ObjectProvider<StringRedisTemplate> redisProvider, ConfigService configService) {
         this.limiter = new SimpleRateLimiter(redisProvider.getIfAvailable());
+        this.configService = configService;
     }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         String path = request.getRequestURI();
         Integer limit = null;
-        for (Map.Entry<String, Integer> e : LIMITS.entrySet()) {
-            if (path.startsWith(e.getKey())) { limit = e.getValue(); break; }
+        for (Map.Entry<String, String> e : LIMITED_PATHS.entrySet()) {
+            if (path.startsWith(e.getKey())) {
+                // 阈值每次请求都从 ConfigService 读（内存缓存，无额外查库开销），
+                // 因此后台改完限流阈值立即生效
+                String configKey = e.getValue();
+                Integer fallback = FALLBACK_LIMITS.get(configKey);
+                limit = configService.getInt(configKey, fallback == null ? 60 : fallback);
+                break;
+            }
         }
-        if (limit == null) return true;
+        if (limit == null || limit <= 0) return true;
 
         String ip = clientIp(request);
         String key = "rl:" + path + ":" + ip;

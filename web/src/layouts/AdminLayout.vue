@@ -163,7 +163,21 @@ const MENU_ROUTE_MAP = {
   '/recycle/index': '/admin/recycle'         // 回收站
 }
 
+/**
+ * 把菜单表里的 url 解析成 SPA 路由。
+ *
+ * <p>两种取值都支持：</p>
+ * <ol>
+ *   <li><b>直接写 SPA 路径</b>（推荐，形如 {@code /admin/settings}）—— 原样返回。
+ *       这样新增后台页面只需往 sys_menu 插一行，<b>不需要改前端代码</b>；</li>
+ *   <li>老菜单里遗留的旧 URL（{@code /culture/index} 这类）—— 查下面的映射表转换。</li>
+ * </ol>
+ * <p>早期实现只认映射表，等于「每加一个后台页面都要来前端加一条映射」，属于硬编码耦合；
+ * 现在优先走第 1 种，映射表只用于兼容存量数据。</p>
+ */
 function routeOf(url) {
+  if (!url) return null
+  if (url.startsWith('/admin')) return url
   return MENU_ROUTE_MAP[url] || null
 }
 

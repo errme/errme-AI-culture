@@ -83,6 +83,13 @@ const routes = [
         meta: { title: "个人资料", styles: [LEGACY.fileinputCss], scripts: [LEGACY.fileinputJs, LEGACY.fileinputZhJs] },
       },
       {
+        path: "settings",
+        name: "systemSettings",
+        component: () => import("@/views/admin/SettingsView.vue"),
+        // 系统设置：配置项、分组、类型、范围全部由后端 sys_config 驱动，前端无对照表
+        meta: { title: "系统设置" },
+      },
+      {
         path: "comment",
         name: "commentManage",
         component: () => import("@/views/admin/CommentManageView.vue"),

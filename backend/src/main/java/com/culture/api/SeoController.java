@@ -70,17 +70,37 @@ import java.util.regex.Pattern;
 @RestController
 public class SeoController {
 
-    /** 站点对外访问地址（末尾斜杠会被去掉，避免拼出 //culture） */
+    /**
+     * 站点对外访问地址（末尾斜杠会被去掉，避免拼出 //culture）。
+     *
+     * <p>这三个站点信息项已搬到后台「系统设置 → 站点信息」，改完即时生效、无需重启。
+     * 这里的 {@code @Value} 保留为「sys_config 中没有该键 / 数据库暂时不可用」时的兜底值，
+     * 因此即使还没执行建表脚本，行为也与改造前完全一致。</p>
+     */
     @Value("${app.site.base-url:http://localhost:8080}")
-    private String baseUrl;
+    private String baseUrlFallback;
 
     /** 站点名（RSS 频道标题 / JSON-LD publisher / meta 标题后缀） */
     @Value("${app.site.name:遇你}")
-    private String siteName;
+    private String siteNameFallback;
 
     /** 站点描述（RSS 频道描述 / 兜底 meta description） */
     @Value("${app.site.description:遇你 · 传统文化 —— 传统文化图文记录与分享}")
-    private String siteDescription;
+    private String siteDescriptionFallback;
+
+    /** 系统配置来源（站点信息等运行期可变项） */
+    @Autowired
+    private com.culture.service.ConfigService configService;
+
+    /** 站点名：后台可改，未配置时回退 application.yml */
+    private String siteName() {
+        return configService.getString("site.name", siteNameFallback);
+    }
+
+    /** 站点描述：后台可改，未配置时回退 application.yml */
+    private String siteDescription() {
+        return configService.getString("site.description", siteDescriptionFallback);
+    }
 
     /**
      * sitemap 索引里分片地址的形式：
@@ -289,9 +309,9 @@ public class SeoController {
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         xml.append("<rss version=\"2.0\" xmlns:atom=\"http://www.w3.org/2005/Atom\">\n");
         xml.append("  <channel>\n");
-        xml.append("    <title>").append(escapeXml(siteName)).append("</title>\n");
+        xml.append("    <title>").append(escapeXml(siteName())).append("</title>\n");
         xml.append("    <link>").append(escapeXml(base + "/")).append("</link>\n");
-        xml.append("    <description>").append(escapeXml(siteDescription)).append("</description>\n");
+        xml.append("    <description>").append(escapeXml(siteDescription())).append("</description>\n");
         // self 链接：订阅源自身的绝对地址（配置项决定，不依赖请求 Host）
         xml.append("    <atom:link rel=\"self\" type=\"application/rss+xml\" href=\"")
                 .append(escapeXml(base + "/rss.xml")).append("\"/>\n");
@@ -380,16 +400,16 @@ public class SeoController {
     private Map<String, Object> cultureMeta(Culture culture) {
         String base = siteBaseUrl();
         String name = plainText(culture.getCultureName());
-        if (name.isEmpty()) name = siteName;
+        if (name.isEmpty()) name = siteName();
 
         String canonical = base + "/culture/" + culture.getId();
-        String title = name + " · " + siteName;
+        String title = name + " · " + siteName();
         // 摘要：desc 优先，为空退回正文；两者都可能带富文本标签，先清洗再截断
         String description = truncate(stripHtml(firstNonBlank(culture.getDesc(), culture.getInfo())), META_DESC_MAX);
-        if (description.isEmpty()) description = siteDescription;
+        if (description.isEmpty()) description = siteDescription();
 
         String image = coverImageUrl(culture.getFmUrl());
-        String keywords = name + ",传统文化," + siteName;
+        String keywords = name + ",传统文化," + siteName();
 
         Map<String, Object> data = baseMeta("/culture/" + culture.getId(), "article",
                 title, description, keywords, canonical, false, image);
@@ -416,7 +436,7 @@ public class SeoController {
         Map<String, Object> author = new LinkedHashMap<String, Object>();
         author.put("@type", "Person");
         String authorName = culture.getUser() == null ? null : plainText(culture.getUser().getUsername());
-        author.put("name", authorName == null || authorName.isEmpty() ? siteName : authorName);
+        author.put("name", authorName == null || authorName.isEmpty() ? siteName() : authorName);
         ld.put("author", author);
 
         Map<String, Object> logo = new LinkedHashMap<String, Object>();
@@ -424,7 +444,7 @@ public class SeoController {
         logo.put("url", siteBaseUrl() + LOGO_IMAGE);
         Map<String, Object> publisher = new LinkedHashMap<String, Object>();
         publisher.put("@type", "Organization");
-        publisher.put("name", siteName);
+        publisher.put("name", siteName());
         publisher.put("logo", logo);
         ld.put("publisher", publisher);
 
@@ -436,23 +456,23 @@ public class SeoController {
     private Map<String, Object> pageMeta(String path) {
         String p = (path == null || path.isEmpty()) ? "/" : path;
         String base = siteBaseUrl();
-        String title = siteName;
-        String description = siteDescription;
+        String title = siteName();
+        String description = siteDescription();
 
         if (!"/".equals(p)) {
             String[] preset = STATIC_META.get(p);
             if (preset != null) {
-                title = preset[0] + " · " + siteName;
+                title = preset[0] + " · " + siteName();
                 description = preset[1];
             } else {
-                title = p + " · " + siteName;
+                title = p + " · " + siteName();
             }
         }
 
         String canonical = base + ("/".equals(p) ? "/" : p);
         boolean noindex = isPrivatePath(p);
         String image = base + DEFAULT_IMAGE;
-        String keywords = "传统文化,文化," + siteName;
+        String keywords = "传统文化,文化," + siteName();
         return baseMeta(p, "website", title, description, keywords, canonical, noindex, image);
     }
 
@@ -460,7 +480,7 @@ public class SeoController {
     private Map<String, Object> minimalMeta(String path) {
         String p = normalizePath(path);
         if (p.isEmpty()) p = "/";
-        return baseMeta(p, "website", siteName, siteDescription, "传统文化,文化," + siteName,
+        return baseMeta(p, "website", siteName(), siteDescription(), "传统文化,文化," + siteName(),
                 siteBaseUrl() + p, true, siteBaseUrl() + DEFAULT_IMAGE);
     }
 
@@ -484,7 +504,7 @@ public class SeoController {
         data.put("ogUrl", canonical);
         data.put("noindex", noindex);
         data.put("robots", noindex ? "noindex,follow" : "index,follow");
-        data.put("siteName", siteName);
+        data.put("siteName()", siteName());
         return data;
     }
 
@@ -535,7 +555,9 @@ public class SeoController {
 
     /** 统一取站点根地址：去掉末尾斜杠，保证拼接结果规范 */
     private String siteBaseUrl() {
-        String base = baseUrl == null ? "" : baseUrl.trim();
+        // 数据库配置优先，application.yml 兜底；改完即时生效
+        String base = configService.getString("site.base-url", baseUrlFallback);
+        base = base == null ? "" : base.trim();
         while (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
