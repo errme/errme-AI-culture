@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN"
+        "http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+
+<!-- 公告 Mapper（新库 biz_announcement，title 列映射回 announcement 属性） -->
+<mapper namespace="com.culture.mapper.AnnouncementMapper">
+
+    <!--分页-->
+    <select id="queryTotal" parameterType="AnnouncementQuery" resultType="java.lang.Long">
+        select count(*)
+        from biz_announcement u
+        where u.deleted = 0
+    </select>
+
+    <select id="queryData" parameterType="AnnouncementQuery" resultType="Announcement">
+        select u.id, u.title announcement, u.created_at createTime
+        from biz_announcement u
+        where u.deleted = 0
+        order by u.id desc
+            limit #{offset}, #{pageSize}
+    </select>
+
+</mapper>

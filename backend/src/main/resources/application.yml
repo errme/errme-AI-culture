@@ -1,0 +1,147 @@
+server:
+  port: 8081
+  tomcat:
+    # 富文本正文（HTML 可能很长）随表单提交时的上限，默认 2MB 偏小
+    max-http-form-post-size: 20MB
+    max-swallow-size: 220MB
+
+spring:
+  # ============ 文件上传上限（关键）============
+  # Spring Boot 默认 max-file-size=1MB / max-request-size=10MB，
+  # 会导致正文图片(>1MB) 与视频上传直接 500，这里必须放开。
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 200MB        # 单文件上限（与 editor.upload.max-video-mb 对应）
+      max-request-size: 220MB     # 单次请求上限（需 ≥ 单文件上限 + 表单开销）
+      file-size-threshold: 2MB    # 超过则先写磁盘，避免大视频占内存
+  datasource:
+    # ============ 新库 culture_v2（前后端分离改造后使用，本机 MySQL） ============
+    # 原远程库（47.101.52.201/www_errrrrr_com）数据已迁移至 culture_v2，如需回退取消下面注释并注释本地配置
+    # url: jdbc:mysql://47.101.52.201/www_errrrrr_com?useSSL=false&useUnicode=true&characterEncoding=UTF-8
+    # username: www_errrrrr_com
+    # password: mJBkG6RpYnDyKMEH
+    url: jdbc:mysql://127.0.0.1:3306/culture_v2?useSSL=false&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: "123456"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    type: com.alibaba.druid.pool.DruidDataSource
+
+    #Spring Boot 默认是不注入这些属性值的，需要自己绑定
+    #druid 数据源专有配置
+    initialSize: 5
+    minIdle: 5
+    maxActive: 20
+    maxWait: 60000
+    timeBetweenEvictionRunsMillis: 60000
+    minEvictableIdleTimeMillis: 300000
+    validationQuery: SELECT 1 FROM DUAL
+    testWhileIdle: true
+    testOnBorrow: false
+    testOnReturn: false
+    poolPreparedStatements: true
+
+    #配置监控统计拦截的filters，stat:监控统计、wall：防御sql注入
+    filters: stat,wall
+    maxPoolPreparedStatementPerConnectionSize: 20
+    useGlobalDataSourceStat: true
+    # 慢 SQL 日志：stat 过滤器记录执行超过 1 秒的语句（排查慢查询用，不影响功能）
+    connectionProperties: druid.stat.mergeSql=true;druid.stat.slowSqlMillis=1000;druid.stat.logSlowSql=true
+
+  # Redis：auth 模块验证码存储 / 60 秒重发限频（本地默认 123456）
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    password: "123456"
+    timeout: 3s
+
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    encoding: utf-8
+    mode: HTML
+    cache: false
+
+  mvc:
+    static-path-pattern: /static/**/
+    servlet:
+      load-on-startup: 100
+
+  resources:
+    # 静态资源不缓存，避免浏览器使用旧的登录/注册 JS（生产可去掉或改为长缓存）
+    cache:
+      period: 0
+
+# 上传目录（本机路径；部署到 Linux 时改为 /www/wwwroot/avatar、/www/wwwroot/culture）
+avatar:
+  upload:
+    path: ${AVATAR_UPLOAD_PATH:D:/me/AI/culture/frontend/static/upload/avatar}
+
+culture:
+  upload:
+    path: ${CULTURE_UPLOAD_PATH:D:/me/AI/culture/frontend/static/upload/culture}
+
+# 富文本正文媒体目录（图片/视频单独存放，URL 前缀 /upload/media/**）
+editor:
+  upload:
+    path: ${EDITOR_UPLOAD_PATH:D:/me/AI/culture/upload/media}
+    max-image-mb: 10      # 单张正文图片上限
+    max-video-mb: 200     # 单个正文视频上限
+
+# ============ auth 模块配置（前后端分离 JWT + 验证码；前台/后台令牌分离） ============
+app:
+  site:
+    # 站点对外访问地址（生成 sitemap/robots/rss/meta 的绝对 URL 用）；生产改为真实域名
+    base-url: ${SITE_BASE_URL:http://localhost:8080}
+    # 站点名：RSS 频道标题、JSON-LD publisher.name、meta 标题后缀
+    name: ${SITE_NAME:遇你}
+    # 站点描述：RSS 频道描述、兜底 meta description
+    description: ${SITE_DESCRIPTION:遇你 · 传统文化 —— 传统文化图文记录与分享}
+  jwt:
+    # 前台（用户端）令牌密钥 —— 生产环境务必通过环境变量 AUTH_JWT_FRONT_SECRET 注入
+    front-secret: ${AUTH_JWT_FRONT_SECRET:culture-front-secret-key-please-change-0123456789abcdefghijklmnopqrstuvwxyz}
+    # 后台（管理端）令牌密钥 —— 与前台不同，务必通过环境变量 AUTH_JWT_ADMIN_SECRET 注入
+    admin-secret: ${AUTH_JWT_ADMIN_SECRET:culture-admin-secret-key-please-change-0123456789abcdefghijklmnopqrstuvwxyz}
+    front-expire-hours: 24   # 前台登录有效期
+    admin-expire-hours: 8    # 后台登录有效期（更短）
+  code:
+    expire-minutes: 5    # 验证码有效期
+    resend-seconds: 60   # 重发间隔
+    # 生产模式：验证码不随接口返回，只通过邮件送达（本地联调保持关闭）
+    return-in-response: false
+  # ============ 定时发布调度（草稿箱 + 定时发布，本任务唯一新增配置）============
+  # true：PublishScheduler 每 60 秒扫描一次，把 status=2（定时待发布）且 publish_at<=NOW() 的内容置为 1（已发布）；
+  # false：@ConditionalOnProperty 让调度 Bean 根本不创建，不做任何扫描（排查问题时可用）。
+  publish:
+    scheduler:
+      enabled: true
+
+  # ============ 前台公共列表的 Redis 读缓存（增量）============
+  # 只缓存「与登录用户无关、读多写极少」的两个前台接口：
+  #   · GET /api/culture/categorys（全部分类）
+  #   · GET /api/tag/list（全部标签，含 cultureCount）
+  # 后台同类接口有意不走缓存（管理员改完必须立刻看到最新数据）。
+  # 失效策略：所有写路径主动删除 key（见 CategoryServiceImpl / TagServiceImpl），
+  #          TTL 只是兜底（万一将来新增写路径忘了失效，最多脏 ttl-seconds 秒）。
+  # Redis 不可用 / enabled=false 时自动降级为直查数据库，接口行为不变。
+  cache:
+    enabled: ${APP_CACHE_ENABLED:true}
+    ttl-seconds: ${APP_CACHE_TTL_SECONDS:60}
+
+  # ============ 慢 SQL 上报（增量）============
+  # MyBatis 插件：超过 threshold-ms 的语句打 WARN 日志，并在 /api/metrics 输出
+  # culture_slow_sql_total / culture_slow_sql_max_ms / culture_slow_sql_last_ms。
+  # 与 Druid 的 druid.stat.slowSqlMillis=1000 是两套独立口径（Druid 只打日志、无计数），
+  # 阈值更小是为了在内容站这种「本该毫秒级」的场景更早发现退化的查询。
+  slow-sql:
+    enabled: ${APP_SLOW_SQL_ENABLED:true}
+    threshold-ms: ${APP_SLOW_SQL_THRESHOLD_MS:500}
+    max-sql-length: 400
+
+# MyBatis配置
+mybatis:
+  mapper-locations: classpath:com/culture/mapper/*.xml
+  type-aliases-package: com.culture.entity,com.culture.query
+  configuration:
+    # 新库列名为 snake_case，开启驼峰映射（create_time -> createTime）
+    map-underscore-to-camel-case: true

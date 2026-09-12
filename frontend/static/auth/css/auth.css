@@ -1,0 +1,235 @@
+/* 落款 - 认证样式（统一设计语言） */
+.email-auth {
+  width: 300px;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.auth-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.auth-form[hidden],
+.auth-success[hidden] { display: none; }
+
+/* ---- 标题与标语 ---- */
+.waitlist h1 {
+  font-size: 56px;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+}
+.waitlist .auth-slogan {
+  font: 300 19px/28px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color: #000;
+  opacity: 0.6;
+  letter-spacing: 0.05em;
+  margin: 0 0 20px;
+  overflow-wrap: break-word;
+}
+
+/* ---- 输入框字段：错误提示绝对定位，不占文档流（零位移） ---- */
+.auth-field {
+  position: relative;
+  width: 300px;
+}
+.auth-field + .auth-field { margin-top: 30px; }
+
+/* ---- 输入框与按钮 ---- */
+.auth-input,
+.auth-button {
+  width: 300px;
+  height: 50px;
+  box-sizing: border-box;
+  border-radius: 25px;
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background: #fff;
+  box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.1);
+}
+.auth-input {
+  border: 1px solid var(--line-color, #e1e1e1);
+  padding: 0 20px;
+  font-size: 14px;
+  line-height: 24px;
+  font-weight: 300;
+  color: #000;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.auth-input::placeholder { color: #000; opacity: 0.35; }
+.auth-input:focus {
+  border-color: var(--accent-color, #ff5924);
+  box-shadow: 10px 10px 20px rgba(0, 0, 0, 0.15);
+}
+.auth-code {
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-indent: 0.35em;
+}
+.auth-button {
+  border: 0;
+  margin-top: 30px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 24px;
+  color: #000;
+  opacity: 0.6;
+  transition: box-shadow 0.3s ease, opacity 0.3s ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.auth-button:hover { box-shadow: 10px 10px 20px rgba(0, 0, 0, 0.15); opacity: 1; }
+.auth-button:active { opacity: 0.8; }
+.auth-button--ghost {
+  background: #fff;
+  color: var(--accent-color, #ff5924);
+  border: 1px solid var(--accent-color, #ff5924);
+  box-shadow: none;
+  margin-top: 12px;
+}
+.auth-button--ghost:hover {
+  background: rgba(255, 89, 36, 0.08);
+  box-shadow: none;
+  opacity: 1;
+}
+.auth-button--ghost:active { background: rgba(255, 89, 36, 0.14); opacity: 1; }
+
+/* 并排按钮行（间距 30px，避免被错误提示遮盖） */
+.auth-row {
+  display: flex;
+  gap: 12px;
+  width: 300px;
+  margin-top: 30px;
+}
+.auth-row .auth-button {
+  flex: 1;
+  margin-top: 0;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+/* ---- 提示与错误（黑色 13px） ---- */
+.waitlist .auth-hint {
+  font: 300 13px/20px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color: #000;
+  margin: 0 0 24px;
+  overflow-wrap: break-word;
+}
+.waitlist .auth-hint strong {
+  font-weight: 600;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.waitlist .auth-error {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  font: 300 13px/20px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color: #000;
+  margin: 0;
+  text-align: center;
+}
+
+/* ---- 输入框内嵌链接 ---- */
+.auth-field--inset .auth-input { padding-left: 70px; padding-right: 70px; }
+.auth-inside {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  font: 300 13px/18px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color: #000;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.auth-inside:hover,
+.auth-inside:active,
+.auth-inside:focus,
+.auth-inside:disabled:hover {
+  background: none;
+  outline: none;
+}
+.auth-inside:disabled { color: #999; cursor: default; background: none; border: 0; }
+
+/* ---- 链接 ---- */
+.auth-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 14px;
+  gap: 6px;
+}
+.auth-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: 300 15px/22px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color: var(--accent-color, #ff5924);
+  text-decoration: none;
+}
+.auth-link:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.auth-link:disabled:hover { text-decoration: none; }
+
+/* ---- 成功状态 ---- */
+.auth-success {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.auth-check { width: 56px; height: 56px; }
+.auth-check circle,
+.auth-check path {
+  fill: none;
+  stroke: var(--accent-color, #ff5924);
+  stroke-width: 3;
+}
+.auth-check path { stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.waitlist .auth-success-title {
+  font: 400 24px/32px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color: #000;
+  margin: 16px 0 4px;
+}
+.waitlist .auth-success-sub {
+  font: 300 13px/20px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color: #000;
+  opacity: 0.6;
+  margin: 0;
+  overflow-wrap: break-word;
+}
+.waitlist .auth-success-note {
+  font: 300 13px/20px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color: #000;
+  margin-top: 14px;
+}
+
+/* ---- 页脚 ---- */
+.waitlist .footer {
+  font-size: 20px;
+  line-height: 28px;
+}
+
+/* ---- 移动端 ---- */
+@media (max-width: 900px) {
+  .waitlist h1 { font-size: 44px; line-height: 1.15; }
+  .waitlist .auth-slogan { font-size: 16px; line-height: 26px; letter-spacing: 0.03em; }
+  .auth-input { font-size: 16px; line-height: 22px; }
+  .auth-code { font-size: 19px; }
+  .auth-button { font-size: 17px; line-height: 22px; }
+  .auth-link { font-size: 14px; line-height: 20px; }
+  .waitlist .auth-success-title { font-size: 22px; line-height: 3px; }
+  .waitlist .footer { font-size: 17px; line-height: 26px; }
+}

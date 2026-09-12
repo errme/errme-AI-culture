@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+  <!--
+    原生 Symbol 保护 —— 必须放在所有第三方脚本之前。
+    bootstrap-table（以及 quill）内置 core-js，加载时会用自带的 Symbol polyfill 覆盖原生 Symbol。
+    一旦被覆盖，Vue 初始化时拿到的 Symbol.for('v-txt')（文本节点类型）就是「假 Symbol 对象」，
+    createVNode 会因 isObject(type) 为真把文本节点误判成组件节点，于是路由切换卸载旧页面时抛
+    “Cannot destructure property 'bum' of 'instance' as it is null” /
+    “Cannot read properties of null (reading 'parentNode')”，并让之后所有菜单点击全部失效。
+    这里把 window.Symbol 固定为原生实现：读取永远是原生 Symbol，第三方的覆盖写入被忽略。
+  -->
+  <!--
+    原生 Symbol 保护 —— 必须放在所有第三方脚本之前。
+    bootstrap-table（以及 quill）内置 core-js，加载时会用自带的 Symbol polyfill 覆盖原生 Symbol。
+    一旦被覆盖，Vue 初始化时拿到的 Symbol.for('v-txt')（文本节点类型）就是「假 Symbol 对象」，
+    createVNode 会因 isObject(type) 为真把文本节点误判成组件节点，于是路由切换卸载旧页面时抛
+    “Cannot destructure property 'bum' of 'instance' as it is null” /
+    “Cannot read properties of null (reading 'parentNode')”，并让之后所有菜单点击全部失效。
+    这里把 window.Symbol 固定为原生实现：读取永远是原生 Symbol，第三方的覆盖写入被忽略。
+  -->
+  <script src="/static/admin/js/native-symbol-guard.js"></script>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, scalable=no" />
+  <title>后台管理系统</title>
+  <meta name="description" content="后台管理系统">
+  <meta name="author" content="SoulCoder">
+
+  <!-- 后台原始样式与脚本（与 Thymeleaf 后台完全一致，保证外观不变） -->
+  <link rel="stylesheet" href="/static/admin/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/admin/css/materialdesignicons.min.css">
+  <link rel="stylesheet" href="/static/admin/css/style.min.css">
+  <link rel="stylesheet" href="/static/admin/js/bootstrap-table/bootstrap-table.min.css">
+  <!-- 富文本编辑器样式（文化管理页用到；放在 head 里避免打开弹窗时才注入造成的样式闪烁） -->
+  <link rel="stylesheet" href="/static/admin/js/vendor/quill/quill.snow.css">
+  <link rel="stylesheet" href="/static/admin/css/culture-editor.css">
+
+  <script src="/static/admin/js/jquery.min.js"></script>
+  <script src="/static/admin/js/bootstrap.min.js"></script>
+  <!--
+    bootstrap-table（含 bootstrap-table-zh-CN）【不在这里加载】：
+    它内置了 core-js，加载时会用自带的 Symbol polyfill 覆盖原生 Symbol（且是 defineProperty 直接替换，
+    无法用 setter 拦截）。若在 Vue 模块初始化之前加载，Vue 内部的 Symbol 常量（Text/Comment/Fragment…）
+    会变成「假 Symbol 对象」，createVNode 因 isObject(type) 为真把文本节点误判为组件节点，
+    路由切换卸载旧页面时抛 “Cannot destructure property 'bum' of 'instance' as it is null” /
+    “Cannot read properties of null (reading 'parentNode')”，之后所有菜单点击全部失效。
+    因此改由入口在 Vue 初始化之后再加载（见 src/entries/admin.js）。
+  -->
+  <script src="/static/admin/js/admin-logout.js"></script>
+  <!--
+    以下库【按需加载】，不进入口 head（原来所有页面都要下载一遍）：
+      · bootstrapValidator / fileinput(+中文包) —— 仅表单页，见 router/admin.js 的 meta.scripts
+      · Chart.js —— 仅后台首页
+      · perfect-scrollbar + main.min.js —— 侧边栏主题脚本，由 AdminLayout 挂载后加载
+      · bootstrap-table —— 内置 core-js，必须等 Vue 初始化后再加载（见 src/entries/admin.js）
+      · jquery-confirm —— 已被自研顶部提示/确认弹窗取代（src/utils/notify.js + components/DialogHost.vue）
+  -->
+  <!--
+    main.min.js（后台主题：侧边栏滚动条/折叠/子菜单展开）会在 jQuery ready 时按 DOM 初始化，
+    必须等 Vue 渲染出侧边栏之后再加载，否则会抛 “no element is specified to initialize PerfectScrollbar”。
+    因此改由 AdminLayout 在挂载完成后动态加载（见 layouts/AdminLayout.vue）。
+    soulcoder.js 依赖旧版 ?id= 菜单高亮逻辑，SPA 中改为 AdminLayout 内的路由高亮，故不再加载。
+  -->
+</head>
+
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/entries/admin.js"></script>
+</body>
+
+</html>

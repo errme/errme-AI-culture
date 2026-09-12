@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN"
+ "http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+
+<!--
+  用户 Mapper（新库 sys_user）
+  新库列 -> 实体属性映射：password_hash->password, phone->tel, avatar->headImg,
+  created_at->createTime, last_login_at->lastLoginAt
+-->
+<mapper namespace="com.culture.mapper.UserMapper">
+
+	<!-- 通用用户列：显式把新库列映射回旧实体属性名 -->
+	<sql id="userColumns">
+		select u.id, u.username, u.password_hash password, u.email, u.phone tel, u.sex,
+		       u.avatar headImg, u.nickname, u.status, u.source,
+		       u.last_login_at lastLoginAt, u.created_at createTime,
+		       u.deleted, u.remark, u.extra
+		from sys_user u
+	</sql>
+
+	<select id="queryAll" resultType="User">
+		<include refid="userColumns"/>
+	</select>
+
+	<select id="findUserByUserName" parameterType="java.lang.String" resultType="User">
+		<include refid="userColumns"/>
+		where u.username = #{username} and u.deleted = 0
+	</select>
+
+	<!-- auth 登录：按邮箱查询 -->
+	<select id="findByEmail" parameterType="java.lang.String" resultType="User">
+		<include refid="userColumns"/>
+		where u.email = #{email} and u.deleted = 0
+	</select>
+
+	<!-- auth：按主键查询 -->
+	<select id="findById" parameterType="java.lang.Long" resultType="User">
+		<include refid="userColumns"/>
+		where u.id = #{id}
+	</select>
+
+	<!-- 新增（auth 注册 / 后台添加共用；NULL 字段给默认值，避免违反 NOT NULL 约束） -->
+	<insert id="addUser" parameterType="User" useGeneratedKeys="true" keyProperty="id">
+		 insert into sys_user(username,password_hash,email,phone,sex,avatar,nickname,status,source,created_at,deleted)
+		 values(#{username},#{password},#{email},#{tel},IFNULL(#{sex},0),#{headImg},
+		        IFNULL(#{nickname},#{username}),IFNULL(#{status},1),IFNULL(#{source},'legacy'),#{createTime},0)
+	</insert>
+
+	<!-- 更新最后登录时间（auth 登录成功时调用） -->
+	<update id="updateLastLoginAt">
+		update sys_user set last_login_at = #{time} where id = #{id}
+	</update>
+
+	<!-- 更新密码（auth 重置密码时调用，密码已由调用方 BCrypt 加密） -->
+	<update id="updatePassword">
+		update sys_user set password_hash = #{password} where id = #{id}
+	</update>
+
+	<!-- 更新头像 -->
+	<update id="updateUserHeadImg" parameterType="User">
+		update sys_user set avatar=#{headImg} where id=#{id}
+	</update>
+
+	<sql id="whereSql">
+		<where>
+			<if test="username != null and username != ''">
+				and u.username like concat('%',#{username},'%')
+			</if>
+			<if test="email != null and email != ''">
+				and u.email like concat('%',#{email},'%')
+			</if>
+		</where>
+	</sql>
+
+	<!--分页-->
+	<select id="queryTotal" parameterType="UserQuery" resultType="java.lang.Long">
+		select count(*)
+		from sys_user u
+		<include refid="whereSql"></include>
+	</select>
+
+	<select id="queryData" parameterType="UserQuery" resultMap="UserMap">
+		select u.*
+		from sys_user u
+		<include refid="whereSql"></include>
+		order by u.id desc
+		limit #{offset},#{pageSize}
+	</select>
+	<resultMap id="UserMap" type="User">
+		<id property="id" column="id"></id>
+		<result property="username" column="username"></result>
+		<result property="password" column="password_hash"></result>
+		<result property="email" column="email"></result>
+		<result property="tel" column="phone"></result>
+		<result property="sex" column="sex"></result>
+		<result property="headImg" column="avatar"></result>
+		<result property="nickname" column="nickname"></result>
+		<result property="status" column="status"></result>
+		<result property="source" column="source"></result>
+		<result property="lastLoginAt" column="last_login_at"></result>
+		<result property="createTime" column="created_at"></result>
+		<result property="deleted" column="deleted"></result>
+		<result property="remark" column="remark"></result>
+		<result property="extra" column="extra"></result>
+		<collection property="roles" column="id" select="getRoleByUserId"></collection>
+	</resultMap>
+
+	<select id="getRoleByUserId" parameterType="java.lang.Long" resultType="Role">
+		select r.id, r.code sn, r.name, r.description `desc`
+		from sys_user_role ur
+		join sys_role r on ur.role_id = r.id
+		where ur.user_id = #{id}
+	</select>
+
+	<!-- 逻辑删除：置 deleted=1，保留历史数据 -->
+	<delete id="deleteUser" parameterType="java.lang.Long" >
+		update sys_user set deleted=1 where id=#{id}
+	</delete>
+
+	<!-- 批量逻辑删除 -->
+	<delete id="batchRemove" parameterType="java.util.List">
+		update sys_user set deleted=1 where id in
+		<foreach collection="list" index="index" item="item"
+				 separator="," open="(" close=")">
+			#{item,jdbcType=BIGINT}
+		</foreach>
+	</delete>
+
+	<!-- 修改用户 -->
+	<update id="editSaveUser" parameterType="User">
+		update sys_user
+		set username=#{username},email=#{email},sex=#{sex},phone=#{tel},
+		    <!-- 表单未传 nickname 时保留原值（原实现会把它清空） -->
+		    nickname=COALESCE(NULLIF(#{nickname},''), nickname)
+		where id =#{id}
+	</update>
+
+	<!-- ===================== 删除可撤销：恢复（增量追加） =====================
+	     与原「逻辑删除」完全对称：删除只置 deleted=1，恢复只把 deleted 改回 0。
+	     关键点：
+	     1) set 里<b>只有 deleted</b>——status（1 启用 / 0 禁用）等字段一律保持原值，
+	        不会因为「恢复」而把本来被禁用的账号意外启用；
+	     2) where 必须带 deleted = 1，只恢复「已逻辑删除」的用户，
+	        对正常用户调用返回 0 行，不会误改；
+	     3) 角色关联（sys_user_role）删除时本就没有动，恢复后角色关系自动仍然有效。
+	===================================================================== -->
+
+	<!-- 恢复单条：返回实际影响行数（0 = 该 id 不存在或本来就没被删除） -->
+	<update id="restoreById">
+		update sys_user set deleted = 0 where id = #{id} and deleted = 1
+	</update>
+
+	<!-- 批量恢复：返回实际影响行数（不存在的 id / 未删除的 id 自动忽略） -->
+	<update id="restoreByIds">
+		update sys_user set deleted = 0
+		where deleted = 1 and id in
+		<foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+	</update>
+
+</mapper>

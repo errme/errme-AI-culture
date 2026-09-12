@@ -1,0 +1,30 @@
+{
+  "name": "culture-web",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "遇你 · 传统文化网站 —— Vue3 前后端分离前端（前台 + 后台管理）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "serve:dist": "node tools/serve-dist.mjs",
+    "prerender": "node tools/prerender.mjs",
+    "build:all": "vite build && node tools/prerender.mjs",
+    "verify": "node tools/verify.mjs",
+    "check:entries": "node tools/check-entry-html.mjs",
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "verify:fast": "node tools/verify.mjs --parallel 4 --fast",
+    "verify:parallel": "node tools/verify.mjs --parallel 4"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "pinia": "^2.3.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^5.4.11"
+  }
+}

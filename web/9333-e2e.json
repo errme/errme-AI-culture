@@ -1,0 +1,258 @@
+[
+  {
+    "name": "旧地址 /static/auth/login.html 301 到干净 URL",
+    "ok": true,
+    "detail": "301 -> /auth/login"
+  },
+  {
+    "name": "前台登录页 Vue 渲染 + orb 背景动画初始化",
+    "ok": true,
+    "detail": "{\"form\":true,\"orb\":true,\"slogan\":\"人间情书，为每一份心动署名\"}"
+  },
+  {
+    "name": "前台登录成功并只写前台 Token",
+    "ok": true,
+    "detail": "{\"token\":\"yes\",\"adminToken\":\"no\",\"url\":\"/\",\"rendered\":true}（提交 1 次）"
+  },
+  {
+    "name": "前台登录后跳转干净路径",
+    "ok": true,
+    "detail": "/"
+  },
+  {
+    "name": "前台页面渲染 /",
+    "ok": true,
+    "detail": "命中=tashuo,sentence,post"
+  },
+  {
+    "name": "前台 CSS 先于渲染就位（无 FOUC） /",
+    "ok": true,
+    "detail": "样式表=10 渲染后才到达=[]"
+  },
+  {
+    "name": "前台页面渲染 /culture",
+    "ok": true,
+    "detail": "命中=proerty-item,pagination"
+  },
+  {
+    "name": "前台 CSS 先于渲染就位（无 FOUC） /culture",
+    "ok": true,
+    "detail": "样式表=13 渲染后才到达=[]"
+  },
+  {
+    "name": "前台页面渲染 /culture/1",
+    "ok": true,
+    "detail": "命中=title,proerty-th"
+  },
+  {
+    "name": "前台 CSS 先于渲染就位（无 FOUC） /culture/1",
+    "ok": true,
+    "detail": "样式表=12 渲染后才到达=[]"
+  },
+  {
+    "name": "前台页面渲染 /sentence",
+    "ok": true,
+    "detail": "命中=item,box"
+  },
+  {
+    "name": "前台 CSS 先于渲染就位（无 FOUC） /sentence",
+    "ok": true,
+    "detail": "样式表=11 渲染后才到达=[]"
+  },
+  {
+    "name": "前台页面渲染 /about",
+    "ok": true,
+    "detail": "命中=-"
+  },
+  {
+    "name": "前台 CSS 先于渲染就位（无 FOUC） /about",
+    "ok": true,
+    "detail": "样式表=11 渲染后才到达=[]"
+  },
+  {
+    "name": "后台登录页渲染（管理后台标识）",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "后台登录写入后台 Token，且与前台 Token 各自独立共存",
+    "ok": true,
+    "detail": "{\"token\":\"yes\",\"frontToken\":\"yes\",\"url\":\"/admin\"}"
+  },
+  {
+    "name": "后台 CSS 先于渲染就位（无 FOUC） /admin",
+    "ok": true,
+    "detail": "样式表=9 渲染后才到达=[]"
+  },
+  {
+    "name": "后台页面渲染 /admin",
+    "ok": true,
+    "detail": "表格行=5"
+  },
+  {
+    "name": "后台 CSS 先于渲染就位（无 FOUC） /admin/culture",
+    "ok": true,
+    "detail": "样式表=11 渲染后才到达=[]"
+  },
+  {
+    "name": "后台页面渲染 /admin/culture",
+    "ok": true,
+    "detail": "表格行=11"
+  },
+  {
+    "name": "后台 CSS 先于渲染就位（无 FOUC） /admin/category",
+    "ok": true,
+    "detail": "样式表=10 渲染后才到达=[]"
+  },
+  {
+    "name": "后台页面渲染 /admin/category",
+    "ok": true,
+    "detail": "表格行=8"
+  },
+  {
+    "name": "后台 CSS 先于渲染就位（无 FOUC） /admin/announcement",
+    "ok": true,
+    "detail": "样式表=10 渲染后才到达=[]"
+  },
+  {
+    "name": "后台页面渲染 /admin/announcement",
+    "ok": true,
+    "detail": "表格行=3"
+  },
+  {
+    "name": "后台 CSS 先于渲染就位（无 FOUC） /admin/sentence",
+    "ok": true,
+    "detail": "样式表=10 渲染后才到达=[]"
+  },
+  {
+    "name": "后台页面渲染 /admin/sentence",
+    "ok": true,
+    "detail": "表格行=8"
+  },
+  {
+    "name": "后台 CSS 先于渲染就位（无 FOUC） /admin/user",
+    "ok": true,
+    "detail": "样式表=11 渲染后才到达=[]"
+  },
+  {
+    "name": "后台页面渲染 /admin/user",
+    "ok": true,
+    "detail": "表格行=10"
+  },
+  {
+    "name": "后台 CSS 先于渲染就位（无 FOUC） /admin/mail",
+    "ok": true,
+    "detail": "样式表=9 渲染后才到达=[]"
+  },
+  {
+    "name": "后台页面渲染 /admin/mail",
+    "ok": true,
+    "detail": "表格行=54"
+  },
+  {
+    "name": "后台原生 Symbol 未被 core-js polyfill 覆盖（Text vnode 关键前提）",
+    "ok": true,
+    "detail": "Symbol.for('v-txt') = Symbol(v-txt)（typeof=symbol，守卫=function）"
+  },
+  {
+    "name": "后台旧插件在 Vue 初始化之后加载且均已就绪",
+    "ok": true,
+    "detail": "jQuery=true bootstrapTable=true validator=true 确认弹窗兼容层=true"
+  },
+  {
+    "name": "动态加载 quill.js（core-js）后 Symbol 仍为原生、富文本编辑器可用",
+    "ok": true,
+    "detail": "Symbol=symbol Quill=true editor=true 编辑器DOM=true 弹窗=false"
+  },
+  {
+    "name": "sitemap 可访问、结构合法且不含后台地址",
+    "ok": true,
+    "detail": "HTTP 200 索引+分片 URL 数=36"
+  },
+  {
+    "name": "robots.txt 可访问、禁止后台并声明 Sitemap",
+    "ok": true,
+    "detail": "HTTP 200"
+  },
+  {
+    "name": "rss.xml 可访问且含条目",
+    "ok": true,
+    "detail": "HTTP 200 item 数=20"
+  },
+  {
+    "name": "服务端 SEO meta 返回 canonical / og / JSON-LD",
+    "ok": {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "草坪之上 京剧遇见连环画",
+      "description": "草坪之上 京剧遇见连环",
+      "image": "http://localhost:8080/showFmImg/bd374d50-4fbf-4196-8043-22c12fe4b88f.jpg",
+      "datePublished": "2021-05-09T18:10:20+08:00",
+      "dateModified": "2026-09-12T17:20:25+08:00",
+      "author": {
+        "@type": "Person",
+        "name": "admin"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "遇你",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "http://localhost:8080/index/images/logo.png"
+        }
+      },
+      "mainEntityOfPage": "http://localhost:8080/culture/32"
+    },
+    "detail": "title=草坪之上 京剧遇见连环画 · 遇你 type=Article"
+  },
+  {
+    "name": "列表封面改用缩略图且保留原图字段",
+    "ok": true,
+    "detail": "bd374d50-4fbf-4196-8043-22c12fe4b88f_thumb.jpg ← 原图 bd374d50-4fbf-4196-8043-22c12fe4b88f.jpg"
+  },
+  {
+    "name": "缩略图可通过 /showFmImg 访问",
+    "ok": true,
+    "detail": "HTTP 200"
+  },
+  {
+    "name": "文化详情页 head 注入 og:image / canonical / JSON-LD",
+    "ok": true,
+    "detail": "og=true canonical=true jsonLd=true title=草坪之上 京剧遇见连环画 · 遇你"
+  },
+  {
+    "name": "富文本编辑器已升级（版本 2.1.0 + 草稿 API + 上传进度 DOM）",
+    "ok": true,
+    "detail": "version=2.1.0 draftKey=culture-add 进度条=true 草稿API=true"
+  },
+  {
+    "name": "草稿可自动落盘、读取并清除（localStorage）",
+    "ok": true,
+    "detail": "hasDraft=true afterClear=true"
+  },
+  {
+    "name": "后台菜单含「菜单权限」且页面可直接访问",
+    "ok": true,
+    "detail": "菜单可见=true 角色=3 目录=5 菜单项=13"
+  },
+  {
+    "name": "后台编辑弹窗正文回填正确（不会把正文保存成空）",
+    "ok": true,
+    "detail": "文化#32 接口正文=1653 字，编辑器=1649 字"
+  },
+  {
+    "name": "GET /api/health 返回依赖状态（免登录、不 500）",
+    "ok": true,
+    "detail": "status=UP db=true redis=true"
+  },
+  {
+    "name": "POST /api/client-error 永远 200（上报失败不影响页面）",
+    "ok": true,
+    "detail": "HTTP 200"
+  },
+  {
+    "name": "前台 Token 访问 /api/admin/me 被拒绝（403）",
+    "ok": true,
+    "detail": "HTTP 403（前台 Token 存在）"
+  }
+]

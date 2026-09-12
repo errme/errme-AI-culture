@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>落款</title>
+
+  <link rel="icon" href="/static/auth/images/favicon.png">
+  <link rel="apple-touch-icon" href="/static/auth/images/apple-touch-icon.png">
+  <meta name="theme-color" content="#fff">
+
+  <!-- 前台登录/注册/找回密码：沿用文件夹 1 的原始样式与 orb 动画 -->
+  <link rel="stylesheet" href="/static/auth/css/base.css">
+  <link rel="stylesheet" href="/static/auth/css/orb.css">
+  <link rel="stylesheet" href="/static/auth/css/auth.css">
+</head>
+
+<body>
+  <div id="app"></div>
+  <!-- orb 动画等脚本在 Vue 渲染完成后由 src/entries/auth.js 动态加载（必须晚于 DOM） -->
+  <script type="module" src="/src/entries/auth.js"></script>
+</body>
+
+</html>

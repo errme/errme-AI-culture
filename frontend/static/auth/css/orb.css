@@ -1,0 +1,90 @@
+body {
+  background-color: #fff;
+}
+.orb-page .intro-overlay {
+  min-width: 430px;
+  min-height: 430px;
+  width: 30vw;
+  height: 30vw;
+}
+.orb-buttons {
+  position: absolute;
+  z-index: 99;
+  top: 15px;
+  right: 15px;
+}
+.orb-buttons button {
+  display: block;
+  min-width: 145px;
+  margin: 0 0 5px auto;
+  padding: 8px 15px;
+  color: #fff;
+  background-color: #000;
+}
+.intro-canvas {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  will-change: transform;
+}
+.intro-overlay {
+  overflow: hidden;
+  width: 35vw;
+  min-width: 480px;
+  height: 35vw;
+  min-height: 480px;
+  position: relative;
+  z-index: 2;
+  border-radius: 50%;
+  background: #f6f8fa;
+  transition: opacity 1s ease-in-out;
+  will-change: opacity;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  grid-row-start: 1;
+  grid-column-start: 1;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  overflow: hidden;
+}
+.intro-overlay.blurred {
+  filter: blur(20px);
+  opacity: 0;
+}
+.intro-overlay.hide {
+  opacity: 0;
+}
+.intro-overlay.show {
+  opacity: 1;
+}
+@media (max-width: 800px) {
+  .intro-canvas {
+    top: 0;
+    left: 0;
+    transform: scale(1, -1);
+    top: 65%;
+  }
+  .intro-overlay {
+    min-width: 106vw;
+    height: 40vw;
+    min-height: 440px;
+    left: -3vw;
+    top: 89%;
+  }
+  .orb-page .intro-canvas {
+    top: 0;
+  }
+  .orb-page .intro-overlay {
+    top: 50%;
+    left: 50%;
+    min-width: 85vw;
+    min-height: 85vw;
+    transform: translate(-50%, -50%) !important;
+  }
+}
+html,
+body {
+  overflow: hidden !important;
+}

@@ -1,0 +1,473 @@
+:root {
+  --line-color: #e1e1e1;
+  --line-color-alt: #d6deeb;
+  --surface-color: #fff;
+  --surface-color-alt: #f0f2f5;
+  --color: #000;
+  --color-alt: #000;
+  --button: #e3e7ee;
+  --accent-color: #ff5924;
+  --dropshadow-color: #babfc2;
+  --highlight-color: #fff7aa;
+  --gutter: 80px;
+  --bar-height: 60px;
+  --col-count: 4;
+  --col-gap: 25px;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+ol,
+p,
+ul {
+  width: 100%;
+  margin-block-start: 1em;
+  margin-block-end: 1em;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  -webkit-font-smoothing: antialiased;
+}
+li,
+ol,
+p,
+ul {
+  font-size: 1em;
+}
+h1 {
+  font-size: 1.25em;
+}
+h2 {
+  font-size: 1.2em;
+}
+h3 {
+  font-size: 1.15em;
+}
+h4 {
+  font-size: 1.1em;
+}
+h5 {
+  font-size: 1.05em;
+}
+h6 {
+  font-size: 1em;
+}
+code {
+  font: 1em "Fira Code";
+}
+pre {
+  font-size: 1em;
+}
+blockquote {
+  font-size: 1em;
+}
+body {
+  overflow: auto !important;
+  height: 100vh;
+}
+@media (max-width: 800px) {
+  .wrap {
+    height: auto;
+  }
+  .ext-settings {
+    background-size: auto 150px;
+    padding: 50px 0;
+  }
+  .ext-settings .block {
+    padding-top: 100px;
+  }
+  .ext-settings .cards {
+    display: block;
+  }
+  .ext-settings .card:nth-child(3) .intro-lottie {
+    top: -48.2%;
+    left: -78%;
+  }
+  .ext-settings .card:not(:last-child) {
+    margin-bottom: 50px;
+  }
+  .ext-settings .card {
+    width: 100%;
+    position: relative;
+  }
+}
+button {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: 0;
+  border: 0;
+  cursor: pointer;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+}
+button[disabled] {
+  background: #d6d6d6;
+}
+button[disabled]:hover {
+  background: #d6d6d6;
+}
+:root {
+  --gutter: 70px;
+}
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  font-weight: 400;
+  background: #fff;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.intro-reveal .guts {
+  opacity: 0;
+}
+.waitlist .logo {
+  margin-bottom: 20px;
+}
+.waitlist h1 {
+  font:
+    400 80px/1 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  letter-spacing: -0.05em;
+  max-width: 400px;
+  color: #000;
+  margin: 0 0 20px;
+}
+.waitlist h2 {
+  font:
+    300 22px/30px -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  letter-spacing: 0;
+  max-width: 360px;
+  color: #000;
+  margin: 0 0 20px;
+}
+.waitlist p:not(:last-child) {
+  margin-bottom: 20px;
+}
+.waitlist p {
+  font:
+    300 26px/35px -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  letter-spacing: 0;
+  color: #000;
+  margin: 0;
+}
+.waitlist .main {
+  display: flex;
+  flex-grow: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+.waitlist .footer a {
+  color: var(--accent-color);
+}
+.waitlist .footer {
+  font:
+    300 22px/30px -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  letter-spacing: 0;
+  color: #000;
+  margin-top: 10px;
+}
+.waitlist .orb .intro-overlay {
+  width: 494px;
+  height: 494px;
+}
+@media (max-width: 800px) {
+  .skip-wait-list-phone-note {
+    display: block;
+  }
+  .skip-wait-list-control {
+    display: none;
+  }
+}
+.onboard {
+  position: relative;
+  overflow: hidden;
+  background: #f6f8fa;
+  margin: var(--gutter);
+  width: calc(100vw - 140px);
+  height: calc(100vh - 140px);
+  display: flex;
+  flex-flow: row;
+  align-items: center;
+  justify-content: center;
+}
+.onboard .branding .icon {
+  width: 100%;
+  height: 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-image: url("../images/branding.svg");
+  mask-image: url("../images/branding.svg");
+  background: #000;
+}
+.onboard .branding {
+  width: 24px;
+  height: 130px;
+  position: fixed;
+  z-index: 50;
+  top: var(--gutter);
+  left: 25px;
+}
+.onboard .guts {
+  display: flex;
+  flex-flow: row;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  z-index: 3;
+}
+.onboard .lhs,
+.onboard .rhs {
+  padding: 50px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  width: 50%;
+}
+.onboard .rhs .wrapper {
+  min-height: 100%;
+  display: flex;
+  flex-flow: column;
+  align-items: center;
+  justify-content: center;
+}
+.onboard .rhs {
+  height: 100%;
+  text-align: center;
+  background: #f6f8fa;
+}
+.onboard .intro-canvas {
+  top: -5%;
+  left: -5%;
+}
+.onboard .intro-overlay {
+  border-radius: 50%;
+  width: 30vw;
+  height: 30vw;
+  min-width: 430px;
+  min-height: 430px;
+  background: #f6f8fa;
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  overflow: hidden;
+}
+@media (min-width: 901px) and (max-width: 1440px) {
+  .onboard {
+    margin: 35px;
+    width: calc(100vw - 70px);
+    height: calc(100vh - 70px);
+  }
+  .onboard .branding {
+    top: 35px;
+    left: 10px;
+    transform: scale(0.7);
+    transform-origin: top left;
+  }
+}
+@media (max-width: 900px) {
+  body {
+    --gutter: 20px;
+    min-height: 100%;
+  }
+  .waitlist {
+    background-position: center 65vh;
+    background-size: 200%;
+  }
+  .waitlist h1 {
+    font-size: 60px;
+  }
+  .waitlist.confirmed .center {
+    padding-bottom: 20vh;
+  }
+  .waitlist.confirmed {
+    background-position: center 50vh;
+    background-size: 300%;
+  }
+  .waitlist .footer a {
+    display: block;
+  }
+  .waitlist .orb .intro-canvas {
+    transform: none;
+    top: 0;
+    left: 0;
+  }
+  .waitlist .orb .intro-overlay {
+    width: 114vw;
+    min-width: auto;
+    height: 114vw;
+    min-height: auto;
+    left: -7vw;
+    max-height: 440px;
+    top: auto;
+    bottom: -48%;
+  }
+  .onboard {
+    height: 100vh;
+    width: 100%;
+    margin: 0;
+  }
+  .onboard .branding {
+    display: none;
+  }
+  .onboard .guts {
+    flex-flow: column;
+    justify-content: flex-start;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .onboard .lhs {
+    width: 100%;
+    min-height: none;
+  }
+  .onboard .rhs {
+    width: 100%;
+    height: auto;
+    background: 0 0;
+  }
+  .onboard .logo {
+    margin-bottom: 20px;
+    width: 45px;
+  }
+  .onboard h2 {
+    font-size: 18px;
+    line-height: 24px;
+  }
+  .onboard .u-show-desktop {
+    display: none;
+  }
+  .onboard .u-show-mobile {
+    display: block;
+  }
+  .step h1 {
+    margin-bottom: 30px;
+    font-size: 65px;
+    line-height: 1;
+  }
+  .step .wrapper {
+    height: auto;
+    padding: calc(var(--gutter) * 2) var(--gutter);
+  }
+  .step li,
+  .step p {
+    font:
+      300 22px/31px -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      Helvetica,
+      Arial,
+      sans-serif;
+  }
+  .step .intro-canvas {
+    transform: none;
+    top: 0;
+    left: 0;
+    overflow: initial;
+  }
+  .step .intro-overlay {
+    width: 114vw;
+    min-width: auto;
+    height: 114vw;
+    min-height: auto;
+    left: -7vw;
+    top: calc(50% - 61vw);
+  }
+  .step-1 {
+    background-position: center;
+    background-size: 300%;
+  }
+  .step-1 .logo {
+    width: 20px;
+    display: inline-block;
+  }
+  .step-1 .action {
+    right: 50%;
+    bottom: 50px;
+    transform: translateX(50%);
+    white-space: nowrap;
+  }
+  .step-1 .wrapper {
+    justify-content: center;
+    text-align: center;
+    align-items: center;
+  }
+  .step-2 {
+    background-position: 20% -60vh;
+    background-size: 250%;
+  }
+  .step-2 .wrapper {
+    text-align: left;
+  }
+  .step-3,
+  .step-4,
+  .step-5 {
+    background-position: center -65vh;
+    background-size: 250%;
+  }
+  .step-3 .lhs,
+  .step-4 .lhs,
+  .step-5 .lhs {
+    display: none;
+  }
+  .step-3 .rhs h1,
+  .step-4 .rhs h1,
+  .step-5 .rhs h1 {
+    font-size: 50px;
+    line-height: 1;
+    margin: 0 0 50px;
+  }
+  .step-3 .rhs img,
+  .step-4 .rhs img,
+  .step-5 .rhs img {
+    display: block;
+  }
+  .step-4 .rhs h1 {
+    width: 103%;
+  }
+  .step-5 .rhs video {
+    display: block;
+    margin-bottom: 40px;
+    width: 114%;
+    margin: 0 -7% 40px;
+    filter: drop-shadow(15.1078px 15.1078px 30.2156px rgba(0, 0, 0, 0.11));
+  }
+}

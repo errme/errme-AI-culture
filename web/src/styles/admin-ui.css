@@ -1,0 +1,343 @@
+/**
+ * 后台统一视觉规范（Admin UI Kit）
+ *
+ * 设计原则：
+ *  1) **只新增、不覆盖**：所有类名都以 `ad-` 前缀命名空间隔离，不修改任何既有 CSS 文件，
+ *     老页面即使没改造也不会受影响（渐进式套用）。
+ *  2) 统一四件事：页头（标题/说明/操作区）、卡片（头部/内容/底部）、表格（密度/空状态/悬浮）、
+ *     反馈（徽章/提示/危险按钮）——解决「每个页面各写一套 inline style」的问题。
+ *  3) 侧边栏与顶栏沿用主题既有 class，只做间距与选中态的轻量增强。
+ *
+ * 由 entries/admin.js 引入，只作用于后台入口。
+ */
+
+:root {
+  --ad-bg: #f4f6fa;
+  --ad-card: #ffffff;
+  --ad-border: #e6eaf0;
+  --ad-border-strong: #d6dce6;
+  --ad-text: #1f2d3d;
+  --ad-text-sub: #5a6b7f;
+  --ad-muted: #8a94a6;
+  --ad-primary: #4f46e5;
+  --ad-primary-weak: #eef0ff;
+  --ad-success: #22a06b;
+  --ad-warning: #e08b00;
+  --ad-danger: #e5484d;
+  --ad-radius: 10px;
+  --ad-radius-sm: 8px;
+  --ad-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 20px rgba(16, 24, 40, 0.05);
+  --ad-gap: 16px;
+}
+
+/* ---------- 页面骨架 ---------- */
+.ad-page { padding-bottom: 8px; }
+.ad-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 2px 0 var(--ad-gap);
+}
+.ad-header__main { min-width: 260px; }
+.ad-header__title { margin: 0; font-size: 18px; font-weight: 600; color: var(--ad-text); line-height: 1.4; }
+.ad-header__title i { color: var(--ad-primary); margin-right: 6px; }
+.ad-header__desc { margin: 4px 0 0; color: var(--ad-muted); font-size: 12.5px; line-height: 1.6; max-width: 860px; }
+.ad-header__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 2px; }
+.ad-header__actions .form-control { display: inline-block; width: auto; }
+
+/* ---------- 卡片 ---------- */
+.ad-card {
+  background: var(--ad-card);
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-radius);
+  box-shadow: var(--ad-shadow);
+  margin-bottom: var(--ad-gap);
+  overflow: hidden;
+}
+.ad-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ad-border);
+  background: #fbfcfe;
+}
+.ad-card__title { margin: 0; font-size: 14.5px; font-weight: 600; color: var(--ad-text); }
+.ad-card__title i { color: var(--ad-primary); margin-right: 6px; }
+.ad-card__sub { margin: 2px 0 0; font-size: 12px; color: var(--ad-muted); font-weight: 400; }
+.ad-card__actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ad-card__body { padding: 16px; }
+.ad-card__body--flush { padding: 0; }
+.ad-card__foot { padding: 12px 16px; border-top: 1px solid var(--ad-border); background: #fbfcfe; }
+
+/* ---------- 概览数字块 ---------- */
+.ad-tiles { display: flex; flex-wrap: wrap; gap: var(--ad-gap); margin-bottom: var(--ad-gap); }
+.ad-tile {
+  flex: 1 1 180px;
+  min-width: 160px;
+  background: var(--ad-card);
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-radius);
+  box-shadow: var(--ad-shadow);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ad-tile__icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--ad-primary-weak); color: var(--ad-primary);
+  font-size: 20px; flex: 0 0 auto;
+}
+.ad-tile__icon--success { background: #e7f7f0; color: var(--ad-success); }
+.ad-tile__icon--warning { background: #fff4e5; color: var(--ad-warning); }
+.ad-tile__icon--danger { background: #fdecec; color: var(--ad-danger); }
+.ad-tile__label { display: block; color: var(--ad-muted); font-size: 12.5px; margin-bottom: 2px; }
+.ad-tile__value { font-size: 22px; font-weight: 600; color: var(--ad-text); line-height: 1.15; }
+.ad-tile__value small { font-size: 12px; font-weight: 400; color: var(--ad-muted); margin-left: 2px; }
+.ad-tile__hint { font-size: 11.5px; color: var(--ad-muted); margin-top: 2px; }
+
+/* ---------- 表格（更紧凑、悬浮更清晰、表头吸顶） ---------- */
+.ad-table-wrap { overflow-x: auto; }
+.ad-table { width: 100%; margin: 0; border-collapse: separate; border-spacing: 0; }
+.ad-table > thead > tr > th {
+  position: sticky; top: 0; z-index: 2;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--ad-border);
+  padding: 10px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ad-text-sub);
+  white-space: nowrap;
+}
+.ad-table > tbody > tr > td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f4f8;
+  font-size: 13px;
+  color: var(--ad-text);
+  vertical-align: middle;
+}
+.ad-table > tbody > tr:hover > td { background: #fafbff; }
+.ad-table > tbody > tr:last-child > td { border-bottom: 0; }
+.ad-table .ad-num { font-variant-numeric: tabular-nums; color: var(--ad-text-sub); }
+.ad-table .ad-actions { white-space: nowrap; }
+
+/* ---------- 空状态 ---------- */
+.ad-empty { padding: 36px 16px; text-align: center; color: var(--ad-muted); }
+.ad-empty i { display: block; font-size: 34px; color: #c7d0dc; margin-bottom: 8px; }
+.ad-empty__text { font-size: 13px; }
+.ad-empty__action { margin-top: 12px; }
+
+/* ---------- 表单与提示 ---------- */
+.ad-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 16px; }
+.ad-section-title {
+  margin: 4px 0 12px; padding-left: 8px;
+  border-left: 3px solid var(--ad-primary);
+  font-size: 13px; font-weight: 600; color: var(--ad-text);
+}
+.ad-help { margin: 4px 0 0; font-size: 11.5px; color: var(--ad-muted); line-height: 1.5; }
+.ad-hint { color: var(--ad-text-sub); font-size: 12.5px; line-height: 1.6; }
+.ad-dirty { color: var(--ad-warning); font-size: 12px; margin-right: 8px; }
+
+/* ---------- 徽章 ---------- */
+.ad-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 11.5px; line-height: 1.6; background: #eef1f6; color: var(--ad-text-sub);
+}
+.ad-badge--primary { background: var(--ad-primary-weak); color: var(--ad-primary); }
+.ad-badge--success { background: #e7f7f0; color: var(--ad-success); }
+.ad-badge--warning { background: #fff4e5; color: var(--ad-warning); }
+.ad-badge--danger { background: #fdecec; color: var(--ad-danger); }
+
+/* ---------- 工具条（吸底操作条） ---------- */
+.ad-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ad-toolbar__spacer { flex: 1 1 auto; }
+.ad-sticky-actions {
+  position: sticky; bottom: 0; z-index: 3;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; margin: 0 -16px -16px;
+  border-top: 1px solid var(--ad-border);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(4px);
+}
+
+/* ==========================================================================
+ * 侧边栏「目录」视觉优化（只作用于后台 .coder-layout-sidebar，不动前台与主题变量）
+ *
+ * 原则：
+ *   1. 只覆盖外观（背景 / 间距 / 颜色 / 圆角 / 过渡 / 滚动条），不动任何结构 class
+ *      —— `.coder-layout-sidebar`、`.nav-item-has-subnav(.open)`、`#nav_*`、`#id_*`、
+ *      `body.coder-layout-sidebar-close` 都是回归套件与主题脚本依赖的钩子；
+ *   2. 一级菜单：图标绝对定位在左（沿用主题排版），文字统一 53px 对齐，右侧保留展开箭头；
+ *   3. 二级菜单：做成「内嵌面板」（半透明底 + 左侧引导线），子项激活时左侧亮条 + 强调色图标；
+ *   4. 选中态统一用主题强调色 #33cabb（激活项左侧亮条 + 图标高亮），比原来的整行淡底清晰。
+ *
+ * ⚠️ 为什么必须显式写背景色：老主题里 `.coder-layout-sidebar` 是
+ * `background-color: red; background-image: url("../images/bg.jpg")`（占位色 + 一张不存在的图）；
+ * 图 404 后这个 240px 宽的侧边栏就是**透明的**，页面内容（正文、封面图）会直接透上来，
+ * 目录文字糊在内容上。这里用一层不透明白天也能看清的深色渐变把它盖实。
+ * ========================================================================== */
+
+/* ---------- 侧边栏外壳：固定宽度、纵向三段（品牌 / 滚动目录 / 底部入口）、完全不透明 ---------- */
+.coder-layout-sidebar {
+  display: flex;
+  flex-direction: column;
+  /* 老主题在这个块上写了 opacity: .8（以及头部内联的 opacity: .9）：整块半透明，
+     页面正文与封面图会透上来把目录文字糊住。这里统一改回不透明。 */
+  opacity: 1;
+  filter: none;
+  background-color: #26343d;                       /* 兜底纯色（老主题是 red，必须覆盖） */
+  background-image: linear-gradient(180deg, #2c3d47 0%, #22303a 100%);
+  box-shadow: 2px 0 12px rgba(15, 26, 33, 0.18);   /* 与内容区拉开层次 */
+}
+
+/* ---------- 品牌区（与顶栏 68px 等高） ---------- */
+.coder-layout-sidebar .sidebar-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  height: 68px;
+  padding: 0;
+  background-color: rgba(15, 26, 33, 0.32);        /* 压深一点，和目录区区分开 */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.coder-layout-sidebar .sidebar-header .ad-brand {
+  width: 100%;
+  height: 100%;
+  padding: 0 16px;
+  text-align: left;
+}
+.coder-layout-sidebar .sidebar-header .ad-brand > span { line-height: 1.25; }
+
+/* ---------- 滚动区：占满剩余高度、细滚动条 ---------- */
+.coder-layout-sidebar .coder-layout-sidebar-scroll {
+  flex: 1 1 auto;
+  height: auto;                                    /* 覆盖老主题的 calc(100% - 40px) */
+  min-height: 0;                                   /* flex 子项能正确收缩并出现滚动条 */
+  padding-bottom: 0;
+  background: transparent;                         /* 底色交给外壳，避免两层半透明叠加 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+.coder-layout-sidebar .coder-layout-sidebar-scroll::-webkit-scrollbar { width: 6px; }
+.coder-layout-sidebar .coder-layout-sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.coder-layout-sidebar .coder-layout-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+}
+.coder-layout-sidebar .coder-layout-sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* ---------- 一级菜单（目录项，无图标） ---------- */
+.coder-layout-sidebar .sidebar-main { padding: 8px 0 6px; }
+.coder-layout-sidebar .nav-drawer > li { margin: 2px 0; }
+.coder-layout-sidebar .nav-drawer li a {
+  position: relative;
+  padding-left: 20px;                 /* 目录不加图标：文字直接从左侧留白开始 */
+  padding-right: 40px;                /* 给右侧箭头留位，避免长名称压到箭头 */
+  font-size: 13.5px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+.coder-layout-sidebar .nav-drawer > li > a {
+  height: 44px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-right: 0;                    /* 用 inset 阴影做左侧亮条，不占布局宽度 */
+  color: rgba(255, 255, 255, 0.78);
+}
+.coder-layout-sidebar .nav-drawer > li > a:hover {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.07);
+}
+
+/* 展开中的分组：父项也高亮一点，让人知道子项属于谁 */
+.coder-layout-sidebar .nav-item-has-subnav.open > a {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.coder-layout-sidebar .nav-item-has-subnav > a:after { color: rgba(255, 255, 255, 0.45); }
+.coder-layout-sidebar .nav-item-has-subnav.open > a:after { color: #33cabb; }
+
+/* 当前所在页（一级项，例如首页）：左侧亮条 */
+.coder-layout-sidebar .nav-drawer > li.active > a {
+  color: #fff !important;
+  background-color: rgba(51, 202, 187, 0.14) !important;
+  box-shadow: inset 3px 0 0 #33cabb;
+}
+
+/* ---------- 二级菜单（内嵌面板 + 左侧引导线，无图标） ---------- */
+.coder-layout-sidebar .nav-subnav {
+  margin: 4px 10px 8px 0;
+  padding: 6px 0 6px 0;
+  background-color: rgba(0, 0, 0, 0.16);
+  border-radius: 0 8px 8px 0;
+  box-shadow: inset 2px 0 0 rgba(255, 255, 255, 0.06);
+}
+.coder-layout-sidebar .nav-drawer ul li ul { padding-left: 0; }  /* 取消主题的 15px 缩进，改用面板内边距 */
+.coder-layout-sidebar .nav-subnav > li > a {
+  height: 36px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 34px;                 /* 比一级项多缩进一点，体现层级 */
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12.8px;
+}
+.coder-layout-sidebar .nav-subnav > li > a:hover {
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.06);
+}
+/* 子项激活：与一级项同一套语言（左侧亮条 + 白字） */
+.coder-layout-sidebar .nav-subnav > li.active > a {
+  color: #fff;
+  font-weight: 600;
+  background-color: rgba(51, 202, 187, 0.16);
+  box-shadow: inset 3px 0 0 #33cabb;
+}
+
+/* ---------- 底部「打开前台站点」（常驻，不随目录滚动） ---------- */
+.coder-layout-sidebar .ad-sidebar-foot {
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: rgba(15, 26, 33, 0.28);
+}
+.coder-layout-sidebar .ad-sidebar-foot a {
+  padding: 6px 8px;
+  margin-left: -8px;
+  border-radius: 6px;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+.coder-layout-sidebar .ad-sidebar-foot a:hover { background-color: rgba(255, 255, 255, 0.08); }
+
+/* ---------- 顶栏标题与内容区 ---------- */
+/*
+ * ⚠️ 这里必须保留侧边栏宽度作为左内边距：侧边栏是 `position: fixed`，**不占布局空间**，
+ * 内容区靠 padding-left 让位（老主题写的是 240px）。一旦用 `padding` 简写把 left 覆盖成 20px，
+ * 内容就会滑到固定导航底下被遮住 —— 这正是「导航栏把内容区遮住」的原因。
+ * 240(侧边栏) + 20(常规留白) = 260px；折叠时回落到 20px。
+ */
+.coder-layout-content { padding: 18px 20px 26px 260px; }
+.coder-layout-sidebar-close .coder-layout-content { padding-left: 20px; }
+
+/* ---------- 窄屏（与老主题同一个断点 1024px：此时侧边栏变抽屉，不再占位） ---------- */
+@media (max-width: 1024px) {
+  .ad-header { flex-direction: column; align-items: stretch; }
+  .ad-header__actions { justify-content: flex-start; }
+  .ad-tile { flex: 1 1 calc(50% - var(--ad-gap)); min-width: 140px; }
+  .coder-layout-content { padding: 14px 12px 20px 12px; }
+  .coder-layout-sidebar-close .coder-layout-content { padding-left: 12px; }
+}
+@media (max-width: 576px) {
+  .ad-tile { flex: 1 1 100%; }
+  .ad-header__title { font-size: 16.5px; }
+}

@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN"
+        "http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+
+<!-- 角色 Mapper（新库 sys_role / sys_user_role / sys_role_permission） -->
+<mapper namespace="com.culture.mapper.RoleMapper">
+
+    <!-- 查询所有的角色（code 列映射回 sn 属性，description 映射回 desc 属性） -->
+    <select id="queryAll" resultType="Role">
+        select id, code sn, name, description `desc`
+        from sys_role
+        where deleted = 0
+    </select>
+
+    <resultMap id="BaseResultMap" type="Role">
+        <id column="id" property="id"></id>
+        <result column="name" property="name"></result>
+        <result column="sn" property="sn"></result>
+    </resultMap>
+
+    <select id="listRoleByUserId" resultMap="BaseResultMap">
+        select r.id, r.code sn, r.name
+        from sys_role r
+                 join sys_user_role ur on r.id = ur.role_id
+        where ur.user_id = #{userid}
+    </select>
+    <sql id="whereSql">
+    </sql>
+
+    <!--分页-->
+    <select id="queryTotal" parameterType="RoleQuery" resultType="java.lang.Long">
+        select count(*) from sys_role where deleted = 0
+        <include refid="whereSql"></include>
+    </select>
+
+    <select id="queryData" parameterType="RoleQuery" resultMap="RoleMap">
+        select id, code sn, name, description `desc` from sys_role
+        where deleted = 0
+        <include refid="whereSql"></include>
+        order by id desc
+        limit #{offset},#{pageSize}
+    </select>
+
+    <resultMap id="RoleMap" type="Role">
+        <id column="id" property="id"></id>
+        <result column="sn" property="sn"></result>
+        <result column="name" property="name"></result>
+        <result column="desc" property="desc"></result>
+        <collection property="permissions" column="id" select="getPermissionsByRoleId"></collection>
+    </resultMap>
+
+    <select id="getPermissionsByRoleId" resultType="Permission">
+        SELECT p.id, p.name, p.title, p.pid, p.menu_id menuId
+        FROM sys_role_permission rp
+                 JOIN sys_permission p ON rp.permission_id = p.id
+        WHERE rp.role_id = #{id}
+    </select>
+
+    <!-- 添加用户的角色 -->
+    <insert id="addUserRole" parameterType="java.util.List">
+        insert into sys_user_role(user_id,role_id)
+        values
+        <foreach collection="list" item="item" separator=",">
+            (#{item.userId},#{item.roleId})
+        </foreach>
+    </insert>
+
+    <!-- 删除中间表角色 -->
+    <delete id="deleteUserRole" parameterType="java.lang.Long">
+        delete
+        from sys_user_role
+        where user_id = #{userId}
+    </delete>
+
+    <!-- 添加角色的权限 -->
+    <insert id="addRolePermission" parameterType="java.util.List">
+        insert into sys_role_permission(role_id,permission_id)
+        values
+        <foreach collection="list" item="item" separator=",">
+            (#{item.roleId},#{item.permissionId})
+        </foreach>
+    </insert>
+
+    <!-- 删除中间表权限 -->
+    <delete id="deleteRolePermission" parameterType="java.lang.Long">
+        delete
+        from sys_role_permission
+        where role_id = #{roleid}
+    </delete>
+
+    <!-- ====================================================================
+         后台「角色管理」相关（增量新增）
+         注意：resultType="map" 时 MyBatis 默认不写入 null 值，Service 层统一
+         把行规整成固定键的 LinkedHashMap，保证 JSON 字段齐全。
+         ==================================================================== -->
+
+    <!-- 1. 所有未删除角色 + 用户数（一次 group by 查完，不做 N+1）
+         用户数 = sys_user_role 的引用行数（与删除保护口径一致）；GROUP BY 列齐全，
+         兼容 MySQL 5.7 的 ONLY_FULL_GROUP_BY。 -->
+    <select id="listRolesWithUserCount" resultType="map">
+        select r.id          id,
+               r.code        code,
+               r.name        name,
+               r.description description,
+               r.sort        sort,
+               r.status      status,
+               count(u.id)   userCount
+        from sys_role r
+                 left join sys_user_role ur on ur.role_id = r.id
+                 -- 只统计存活用户：逻辑删除用户的历史引用不应让角色「看起来还有人」
+                 left join sys_user u on u.id = ur.user_id and u.deleted = 0
+        where r.deleted = 0 and (ur.id is null or u.id is not null)
+        group by r.id, r.code, r.name, r.description, r.sort, r.status
+        order by r.sort, r.id
+    </select>
+
+    <!-- 2. 角色明细（编辑回显 / 保护规则判断用） -->
+    <select id="getRoleById" resultType="map">
+        select id, code, name, description, sort, status
+        from sys_role
+        where id = #{id}
+          and deleted = 0
+    </select>
+
+    <!-- 2. code 占用检查（忽略大小写，与 uk_role_code 的 utf8mb4_unicode_ci 行为一致）；
+            excludeId 用于「修改」时排除自己 -->
+    <select id="findRoleIdByCode" resultType="java.lang.Long">
+        select id
+        from sys_role
+        where deleted = 0
+          and lower(code) = lower(#{code})
+        <if test="excludeId != null">
+            and id &lt;&gt; #{excludeId}
+        </if>
+        order by id
+        limit 1
+    </select>
+
+    <!-- 2. name 占用检查（列排序规则 ci，比较本身即忽略大小写） -->
+    <select id="findRoleIdByName" resultType="java.lang.Long">
+        select id
+        from sys_role
+        where deleted = 0
+          and name = #{name}
+        <if test="excludeId != null">
+            and id &lt;&gt; #{excludeId}
+        </if>
+        order by id
+        limit 1
+    </select>
+
+    <!-- 2. 启用中的「管理员角色」数量（id=1 或 code=admin 或 name=管理员）：
+           excludeId 表示「排除待停用/待删除的这个角色后还剩几个」，为 0 则不允许操作。 -->
+    <select id="countEnabledAdminRoles" resultType="java.lang.Long">
+        select count(*)
+        from sys_role
+        where deleted = 0
+          and status = 1
+          and (id = 1
+               or lower(ifnull(code, '')) = 'admin'
+               or name = '管理员')
+        <if test="excludeId != null">
+            and id &lt;&gt; #{excludeId}
+        </if>
+    </select>
+
+    <!-- 2. 新增角色（useGeneratedKeys 把自增主键回填到入参 map 的 id 键） -->
+    <insert id="insertRole" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        insert into sys_role (code, name, description, sort, status, deleted)
+        values (#{code}, #{name}, #{description}, #{sort}, #{status}, 0)
+    </insert>
+
+    <!-- 2. 修改角色基础信息（created_at / deleted 不动；updated_at 由表默认值 ON UPDATE 维护） -->
+    <update id="updateRole" parameterType="map">
+        update sys_role
+        set code        = #{code},
+            name        = #{name},
+            description = #{description},
+            sort        = #{sort},
+            status      = #{status}
+        where id = #{id}
+          and deleted = 0
+    </update>
+
+    <!-- 3. 该角色下的用户数（**只算存活用户**，与列表 userCount 严格同口径：
+            否则会出现「列表显示 2 个用户、删除却提示还有 4 个」的不一致） -->
+    <select id="countUsersByRoleId" resultType="java.lang.Long">
+        select count(*)
+        from sys_user_role ur
+                 join sys_user u on u.id = ur.user_id and u.deleted = 0
+        where ur.role_id = #{roleId}
+    </select>
+
+    <!-- 3. 逻辑删除角色（角色行保留，仅置 deleted=1） -->
+    <update id="deleteRoleLogically">
+        update sys_role
+        set deleted = 1
+        where id = #{id}
+          and deleted = 0
+    </update>
+
+    <!-- 3. 清理该角色的全部权限关联（菜单类 + 按钮类一起清，因为角色本身已逻辑删除） -->
+    <delete id="deleteRoleAllPermissions">
+        delete
+        from sys_role_permission
+        where role_id = #{roleId}
+    </delete>
+
+</mapper>

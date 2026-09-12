@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN"
+ "http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+
+<!--
+  文化 Mapper（新库 biz_culture / biz_like）
+  列映射：name->cultureName, description->desc, content->info, cover_url->fmUrl,
+         view_count->view, like_count->likeCount
+-->
+<mapper namespace="com.culture.mapper.CultureMapper">
+
+	<!--
+	  新增（增量：支持草稿/定时发布的可选列）
+	  status / publish_at 用 <if> 动态拼接：两者都为 null 时拼出的 SQL 与改造前完全一致
+	  （列清单、参数顺序都不变），因此既有「新增」调用行为不受影响。
+	  status：0=草稿 1=已发布 2=定时待发布；不传时用表默认值 1。
+	-->
+	<insert id="addCulture" parameterType="Culture" useGeneratedKeys="true" keyProperty="id">
+		 insert into biz_culture(name,address,description,content,cover_url,category_id,creator_id,view_count,created_at
+		 <if test="status != null">,status</if>
+		 <if test="publishAt != null">,publish_at</if>
+		 )
+		 values(#{cultureName},#{address},#{desc},#{info},#{fmUrl},#{categoryId},#{creatorId},#{view},#{createTime}
+		 <if test="status != null">,#{status}</if>
+		 <if test="publishAt != null">,#{publishAt}</if>
+		 )
+	</insert>
+
+	<!-- 更新封面图 -->
+	<update id="updateCultureFmUrl" parameterType="Culture">
+		update biz_culture set cover_url=#{fmUrl} where id=#{id}
+	</update>
+
+	<sql id="whereSql">
+		<where>
+			<!-- 逻辑删除的记录不再出现在列表与统计中（与其它模块保持一致） -->
+			u.deleted = 0
+			<if test="cultureName != null and cultureName != ''">
+				and u.name like concat('%',#{cultureName},'%')
+			</if>
+			<if test="categoryId != null and categoryId != '' and categoryId != -1">
+				and u.category_id = #{categoryId}
+			</if>
+			<!--
+			  增量：按状态筛选（草稿箱 = status 0，定时待发布 = status 2）。
+			  为 null 时不拼任何条件 → 既有列表/统计的筛选行为完全不变。
+			  前后台共用本 SQL：后台入口（/api/admin/culture/list）不设置 status，
+			  由前端查询参数决定（?status=0 就是草稿箱）；前台入口
+			  （ApiHomeController#cultureList）在绑定参数之后强制 setStatus(1)，
+			  因此前台列表/总数只含已发布内容，且请求里带 ?status=0 也无法绕过。
+			-->
+			<if test="status != null">
+				and u.status = #{status}
+			</if>
+			<!--
+			  增量（推荐位/置顶）：按置顶筛选（?isTop=1 只看置顶，?isTop=0 只看非置顶）。
+			  为 null 时不拼任何条件 → 既有列表/统计的筛选行为完全不变（与 status 同一写法）。
+			  这里刻意只判 null，不写成 `isTop != ''`：OGNL 把 Integer 与空串比较时会做字符串
+			  转换，对 0 的判定反直觉（categoryId 那里需要兼容空串是因为它来自表单/URL 绑定），
+			  而 isTop 由前端显式传 0/1，纯 null 判断最稳。
+			  前后台共用：后台 /api/admin/culture/list?isTop=1 可筛置顶；
+			  前台入口只强制 status=1，不动 isTop。
+			-->
+			<if test="isTop != null">
+				and u.is_top = #{isTop}
+			</if>
+		</where>
+	</sql>
+
+	<!--分页-->
+	<select id="queryTotal" parameterType="CultureQuery" resultType="java.lang.Long">
+		select count(*)
+		from biz_culture u
+		<include refid="whereSql"></include>
+	</select>
+
+	<!--
+	  后台/前台文化分页列表（瘦身版）：
+	  1) 不再用 `u.*`——它会把 longtext 正文 content（单条最长可达几十 KB）整列拉出来，
+	     列表页并不需要全文，这是列表响应体过大的根因；
+	  2) 改为显式列清单，正文只取受限长度摘要 LEFT(u.content,300) 映射到 Culture.infoSummary；
+	  3) 完整正文只在详情接口（findDetailById / findSeoDetail / 后台详情）返回；
+	  4) 其它列与原来 u.* 里列表真正用到的字段一一对应，保证列表页字段向后兼容。
+	     注意：status/updated_at/deleted 等列原来由 u.* 带出，但 CultureMap 未映射，响应里本来就没有，
+	     这里同样不取，避免给既有接口新增字段。
+	     后台列表需要 status/publishAt 时走下面的 queryAdminPage（本查询保持一字不动）。
+	-->
+	<select id="queryData" parameterType="CultureQuery" resultMap="CultureMap">
+		select u.id, u.name, u.address, u.description,
+		       LEFT(u.content, 300) infoSummary,
+		       u.cover_url, u.category_id, u.creator_id, u.view_count, u.like_count, u.created_at,
+		       s.id sid, s.username, c.id cid, c.name categoryName
+		from biz_culture u
+		join sys_user s on u.creator_id = s.id
+		join biz_category c on u.category_id = c.id
+		<include refid="whereSql"></include>
+		order by u.id desc
+		limit #{offset},#{pageSize}
+	</select>
+	<resultMap id="CultureMap" type="Culture">
+		<id property="id" column="id"></id>
+		<result property="cultureName" column="name"></result>
+		<result property="address" column="address"></result>
+		<!-- 列表不返回正文 info，只返回摘要 infoSummary -->
+		<result property="infoSummary" column="infoSummary"></result>
+		<result property="desc" column="description"></result>
+		<result property="fmUrl" column="cover_url"></result>
+		<result property="view" column="view_count"></result>
+		<result property="likeCount" column="like_count"></result>
+		<result property="createTime" column="created_at"></result>
+		<result property="user.id" column="sid"></result>
+		<result property="user.username" column="username"></result>
+		<result property="category.id" column="cid"></result>
+		<result property="category.categoryName" column="categoryName"></result>
+	</resultMap>
+
+	<!--
+	  后台专用分页列表（增量：草稿箱体验「后台列表看不到发布状态」）
+	  与上面 queryData 的差异只有一处：列清单末尾额外取 u.status, u.publish_at,
+	  u.is_top, u.recommend_sort，映射到 Culture.status / Culture.publishAt /
+	  Culture.isTop / Culture.recommendSort（供后台列表渲染「状态」列与「置顶 / 推荐顺序」，
+	  后者是本次推荐位/置顶增量的运营视图：不查这一列的话后台根本看不到谁被置顶了）。
+	  join、whereSql 动态筛选（名称 / 分类 / 状态 / 置顶）、order by、limit 分页与 queryData
+	  <b>逐字相同</b> —— 后台排序刻意保持 u.id desc，不掺入 is_top / recommend_sort。
+
+	  为什么复制一份而不是给 queryData 加列：queryData 是前后台共用
+	  （ApiHomeController#cultureList 也走它），给它加列会让前台列表接口凭空多出
+	  status/publishAt/isTop/recommendSort 字段。这里保持 queryData 一字不动 ——
+	  前台响应结构因此完全不变。
+	  调用方：ApiAdminController#cultureList → CultureService#listpageForAdmin。
+	-->
+	<select id="queryAdminPage" parameterType="CultureQuery" resultMap="AdminCultureMap">
+		select u.id, u.name, u.address, u.description,
+		       LEFT(u.content, 300) infoSummary,
+		       u.cover_url, u.category_id, u.creator_id, u.view_count, u.like_count, u.created_at,
+		       u.status, u.publish_at, u.is_top, u.recommend_sort,
+		       s.id sid, s.username, c.id cid, c.name categoryName
+		from biz_culture u
+		join sys_user s on u.creator_id = s.id
+		join biz_category c on u.category_id = c.id
+		<include refid="whereSql"></include>
+		order by u.id desc
+		limit #{offset},#{pageSize}
+	</select>
+
+	<!-- 后台列表 resultMap：完整继承列表用 CultureMap，只多映射 status / publish_at / 置顶两列 -->
+	<resultMap id="AdminCultureMap" type="Culture" extends="CultureMap">
+		<result property="status" column="status"></result>
+		<result property="publishAt" column="publish_at"></result>
+		<result property="isTop" column="is_top"></result>
+		<result property="recommendSort" column="recommend_sort"></result>
+	</resultMap>
+
+	<!-- 逻辑删除 -->
+	<delete id="deleteCulture" parameterType="java.lang.Long" >
+		update biz_culture set deleted=1 where id=#{id}
+	</delete>
+
+	<!--
+	  修改（增量：支持草稿/定时发布）
+	  status / publish_at 用 <if> 动态拼接，原则是「取不到就保持原值」：
+	    · 不传 status      → 不改 status（草稿保存时不会把已发布内容降级，反之亦然）；
+	    · 不传 publishAt   → 不改 publish_at；
+	    · 两个都不传时，SET 子句与改造前逐字相同，既有编辑保存行为不变。
+	-->
+	<update id="editSaveCulture" parameterType="Culture">
+		update biz_culture
+		set name=#{cultureName},address=#{address},
+		     content=#{info},description=#{desc},category_id=#{categoryId}
+		     <if test="status != null">,status=#{status}</if>
+		     <if test="publishAt != null">,publish_at=#{publishAt}</if>
+		where id =#{id}
+	</update>
+
+	<!-- ===================== SEO 专用查询（sitemap / rss / meta） =====================
+	     为什么单独写而不是复用上面的 COLS / CultureMap：
+	     1) SEO 需要 updated_at 作 lastmod / dateModified，而既有查询刻意不查该列
+	        （避免给 /api/culture/** 的响应新增字段，保持既有接口响应不变）；
+	     2) sitemap 只需要 id + 时间，不必把 longtext 正文全部拉出来；
+	     3) 只有这里需要「作者用户名」，用 left join 取，作者被删除时不影响内容本身。
+	     统一过滤 deleted=0 <b>且 status=1</b>：SEO 是纯前台用途（sitemap / rss / meta 都会被
+	     搜索引擎抓取），逻辑删除的内容、草稿（status=0）、已下架（status=0）与
+	     定时未到点（status=2）的内容都不允许进入，否则等于把未发布内容提前公开并让爬虫收录。
+	     注意这三个 select 只被 SeoController 调用，后台不使用，因此加 status=1 不影响后台。
+	================================================================================= -->
+	<resultMap id="SeoCultureMap" type="Culture">
+		<id property="id" column="id"></id>
+		<result property="cultureName" column="name"></result>
+		<result property="desc" column="description"></result>
+		<result property="info" column="content"></result>
+		<result property="fmUrl" column="cover_url"></result>
+		<result property="categoryId" column="category_id"></result>
+		<result property="createTime" column="created_at"></result>
+		<result property="updateTime" column="updated_at"></result>
+		<!--
+		  增量：映射 status，让 Service 层的「只收录已发布」兜底判断真正生效。
+		  此前三条 SEO 查询的 select 列里没有 c.status（也没映射），Culture.status 恒为 null，
+		  Service 里 `culture.getStatus() != 1 → 跳过` 的兜底等于空操作。
+		  现在变成「SQL WHERE status=1」+「Service 再判一次 status==1」双保险：
+		  将来有人误删 SQL 里的过滤条件，草稿 / 已下架 / 定时未到点的内容也不会进入 sitemap 与 RSS。
+		  注意：status 只是排查/兜底用的标记，SEO 响应（XML/JSON-LD）里不输出该字段。
+		-->
+		<result property="status" column="status"></result>
+		<result property="user.username" column="author_name"></result>
+	</resultMap>
+
+	<!-- sitemap：全部未删除<b>且已发布</b>内容的 id 与时间（不取正文，避免整表 longtext 传输）
+	     select 列表带上 c.status：供 SeoCultureMap 映射 + Service 兜底判断（见上面的注释） -->
+	<select id="findSeoList" resultMap="SeoCultureMap">
+		select c.id, c.status, c.created_at, c.updated_at
+		from biz_culture c
+		where c.deleted = 0 and c.status = 1
+		order by c.id desc
+	</select>
+
+	<!-- rss：最新 limit 条（含描述与正文，用于生成纯文本摘要）；只取已发布（c.status = 1 必须保留） -->
+	<select id="findSeoLatest" resultMap="SeoCultureMap">
+		select c.id, c.status, c.name, c.description, c.content, c.cover_url, c.category_id,
+		       c.created_at, c.updated_at, u.username as author_name
+		from biz_culture c
+		left join sys_user u on c.creator_id = u.id
+		where c.deleted = 0 and c.status = 1
+		order by c.created_at desc, c.id desc
+		limit #{limit}
+	</select>
+
+	<!-- meta：单条内容的 SEO 字段；只取已发布（草稿/下架/定时未到点返回空 → 调用方给 404 兜底 meta；
+	     c.status = 1 必须保留，同时 select 带 c.status 供 Service 兜底判断） -->
+	<select id="findSeoDetail" resultMap="SeoCultureMap">
+		select c.id, c.status, c.name, c.description, c.content, c.cover_url, c.category_id,
+		       c.created_at, c.updated_at, u.username as author_name
+		from biz_culture c
+		left join sys_user u on c.creator_id = u.id
+		where c.id = #{id} and c.deleted = 0 and c.status = 1
+	</select>
+
+	<!-- ===================== 后台批量操作 / CSV 导出（增量追加） =====================
+	     为什么导出单独写一个 select 而不是复用 queryData：
+	     1) queryData 是 `select u.*`，会把 longtext 正文 content 全部拉出来，
+	        导出只要摘要级字段，分批导出时更不该传输正文（内存/带宽）；
+	     2) 导出需要 updated_at 与 status 两列，既有 resultMap（CultureMap）不含它们；
+	     3) 作者/分类用 left join，作者或分类缺失的内容也照样导出，不会凭空少行。
+	     条件与后台列表保持一致：cultureName 模糊 + categoryId（Service 已把 -1 归一为 null）。
+	================================================================================= -->
+
+	<!-- 导出筛选条件（独立于 whereSql：whereSql 的 OGNL 变量是根对象，这里参数被 @Param("q") 包了一层） -->
+	<sql id="exportWhereSql">
+		<where>
+			u.deleted = 0
+			<if test="q.cultureName != null and q.cultureName != ''">
+				and u.name like concat('%',#{q.cultureName},'%')
+			</if>
+			<if test="q.categoryId != null">
+				and u.category_id = #{q.categoryId}
+			</if>
+			<!-- 增量：导出条件与列表保持一致，同样支持按 status 过滤；不传时行为不变 -->
+			<if test="q.status != null">
+				and u.status = #{q.status}
+			</if>
+			<!-- 增量（推荐位/置顶）：导出条件与列表 whereSql 保持一致，同样支持 isTop 过滤 -->
+			<if test="q.isTop != null">
+				and u.is_top = #{q.isTop}
+			</if>
+		</where>
+	</sql>
+
+	<!-- 导出分批查询：每批 pageSize 条（调用方用 500），按 id 倒序保证分页稳定 -->
+	<select id="queryExportBatch" resultType="java.util.LinkedHashMap">
+		select u.id as id,
+		       u.name as cultureName,
+		       s.username as authorName,
+		       ct.name as categoryName,
+		       u.status as status,
+		       u.created_at as createTime,
+		       u.updated_at as updateTime
+		from biz_culture u
+		left join sys_user s on u.creator_id = s.id
+		left join biz_category ct on u.category_id = ct.id
+		<include refid="exportWhereSql"></include>
+		order by u.id desc
+		limit #{offset},#{pageSize}
+	</select>
+
+	<!-- 批量逻辑删除（只动 deleted，与单条 deleteCulture 一致） -->
+	<update id="batchDelete">
+		update biz_culture set deleted = 1
+		where deleted = 0 and id in
+		<foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+	</update>
+
+	<!-- 批量修改分类（updated_at 由表上的 on update CURRENT_TIMESTAMP 自动刷新） -->
+	<update id="batchUpdateCategory">
+		update biz_culture set category_id = #{categoryId}
+		where deleted = 0 and id in
+		<foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+	</update>
+
+	<!-- ===================== 删除可撤销：恢复（增量追加） =====================
+	     与原「删除」完全对称：删除只置 deleted=1，恢复只把 deleted 改回 0。
+	     关键点：where 必须带 deleted = 1，保证只恢复「已逻辑删除」的行——
+	     对正常记录调用恢复不会产生任何影响行数，也不会意外改动其它字段
+	     （biz_culture_tag 关联、封面、正文等一律不动）。
+	===================================================================== -->
+
+	<!-- 恢复单条：返回实际影响行数（0 = 该 id 不存在或本来就没被删除） -->
+	<update id="restoreById">
+		update biz_culture set deleted = 0 where id = #{id} and deleted = 1
+	</update>
+
+	<!-- 批量恢复：返回实际影响行数（不存在的 id / 未删除的 id 自动忽略） -->
+	<update id="restoreByIds">
+		update biz_culture set deleted = 0
+		where deleted = 1 and id in
+		<foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+	</update>
+
+	<!-- ===================== 定时发布 + 草稿箱（增量追加） =====================
+	     status 语义：0=草稿、1=已发布、2=定时待发布。
+	     历史数据全部是 1，本增量不改动任何既有数据（见 docs/sql/09_publish_schedule.sql）。
+	====================================================================== -->
+
+	<!--
+	  批量改状态（后台 POST /api/admin/culture/batch-status）：
+	  只改 status 一列，不动 publish_at——计划发布时间保留下来便于追溯；
+	  合法值 0/1/2 由 Service 先行校验，非法值不会走到这里。
+	-->
+	<update id="batchUpdateStatus">
+		update biz_culture set status = #{status}
+		where deleted = 0 and id in
+		<foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+	</update>
+
+	<!--
+	  定时发布扫描（PublishScheduler 每 60 秒调用一次）：
+	  到点的记录一次性批量置为已发布（status 2 → 1）。
+	  条件全部写在 SQL 里：单条 UPDATE 天然并发安全，不需要「先查 id 再逐条更新」，
+	  也不会因为两次扫描重叠而重复发布（第二次扫描时 status 已经不是 2）。
+	  updated_at 由表上的 ON UPDATE CURRENT_TIMESTAMP 自动刷新。
+	-->
+	<update id="publishScheduled">
+		update biz_culture
+		set status = 1
+		where status = 2
+		  and deleted = 0
+		  and publish_at is not null
+		  and publish_at &lt;= now()
+	</update>
+
+	<!--
+	  版本回滚（后台 POST /api/admin/culture/rollback）：
+	  只还原版本表里保存的 5 个字段；status / publish_at / address 不参与回滚。
+	  调用方（CultureVersionServiceImpl.rollback）在同一事务里已先写过「当前内容」的快照。
+	-->
+	<update id="applyVersion">
+		update biz_culture
+		set name = #{name},
+		    description = #{description},
+		    content = #{content},
+		    cover_url = #{coverUrl},
+		    category_id = #{categoryId}
+		where id = #{id} and deleted = 0
+	</update>
+
+	<!-- ===================== 推荐位 / 置顶（增量追加，见 docs/sql/12_recommend.sql） =====================
+	     前台排序变化只体现在 CultureMapper#queryHotAll / #findTop4Culture 两条注解 SQL：
+	       order by is_top desc, recommend_sort asc, <原排序字段>
+	     后台列表（queryData / queryAdminPage）仍按 u.id desc，管理端排序不受影响。
+	     下面两条 UPDATE 是运营写入口，都带 deleted = 0（逻辑删除的内容不会被误改）。
+	================================================================================================ -->
+
+	<!--
+	  批量置顶 / 取消置顶（后台 POST /api/admin/culture/top）：
+	  只改 is_top 一列，不动 recommend_sort / status / publish_at ——
+	  取消置顶后再置顶回来，原来的推荐位顺序仍然保留。
+	  isTop 只允许 0/1（Service 校验），ids 由 Service 保证非空、已去重且 ≤ 500 条。
+	  updated_at 由表上的 ON UPDATE CURRENT_TIMESTAMP 自动刷新。
+	-->
+	<update id="batchUpdateTop">
+		update biz_culture set is_top = #{isTop}
+		where deleted = 0 and id in
+		<foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+	</update>
+
+	<!--
+	  调整单条内容的推荐位顺序（后台 POST /api/admin/culture/recommend-sort）：
+	  只改 recommend_sort 一列，不动 is_top —— 运营可以先把内容置顶，再在置顶集合内调整先后
+	  （越小越靠前，允许 0 与负数，便于「插到最前」而不必重排全部数据）。
+	  where 带 deleted = 0：影响行数 0 表示 id 不存在或已被逻辑删除，控制层据此返回 404 业务错误。
+	-->
+	<update id="updateRecommendSort">
+		update biz_culture set recommend_sort = #{recommendSort}
+		where id = #{id} and deleted = 0
+	</update>
+
+</mapper>

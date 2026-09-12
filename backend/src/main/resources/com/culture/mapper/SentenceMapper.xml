@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN"
+        "http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+
+<!-- 句子 Mapper（新库 biz_sentence） -->
+<mapper namespace="com.culture.mapper.SentenceMapper">
+
+    <resultMap id="sentenceMap" type="Sentence">
+        <id property="id" column="id"></id>
+        <result property="content" column="content"></result>
+        <result property="createId" column="create_id"></result>
+        <result property="createName" column="create_name"></result>
+        <result property="createImg" column="create_img"></result>
+        <result property="createTime" column="created_at"></result>
+
+        <collection property="userList" ofType="User">
+            <id property="id" column="id"></id>
+            <result property="username" column="username"></result>
+            <result property="password" column="password_hash"></result>
+            <result property="email" column="email"></result>
+            <result property="tel" column="phone"></result>
+            <result property="sex" column="sex"></result>
+            <result property="headImg" column="avatar"></result>
+            <result property="createTime" column="created_at"></result>
+        </collection>
+    </resultMap>
+
+    <select id="findAll" resultMap="sentenceMap">
+        select  sen.*, u.username
+        from biz_sentence sen
+                 left outer join sys_user u on sen.create_id = u.id
+        where sen.deleted = 0
+    </select>
+
+    <!--分页-->
+    <select id="queryTotal" parameterType="SentenceQuery" resultType="java.lang.Long">
+        select count(*)
+        from biz_sentence u
+        where u.deleted = 0
+    </select>
+
+    <select id="queryData" parameterType="SentenceQuery" resultType="Sentence">
+        select u.id, u.content, u.create_id createId, u.create_name createName,
+               u.create_img createImg, u.created_at createTime
+        from biz_sentence u
+        where u.deleted = 0
+        order by u.id desc
+            limit #{offset}, #{pageSize}
+    </select>
+</mapper>

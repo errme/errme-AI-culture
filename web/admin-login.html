@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>管理后台登录 · 落款</title>
+
+  <link rel="icon" href="/static/auth/images/favicon.png">
+  <link rel="apple-touch-icon" href="/static/auth/images/apple-touch-icon.png">
+  <meta name="theme-color" content="#fff">
+
+  <!-- 后台登录页：沿用落款风格（与前台登录同一套视觉） -->
+  <link rel="stylesheet" href="/static/auth/css/base.css">
+  <link rel="stylesheet" href="/static/auth/css/orb.css">
+  <link rel="stylesheet" href="/static/auth/css/auth.css">
+  <style>
+    /* 与后台登录页一致的管理员标识（原 admin-login.html 内联样式，原样保留） */
+    .admin-badge {
+      display: inline-block;
+      margin-bottom: 10px;
+      padding: 3px 12px;
+      font-size: 12px;
+      letter-spacing: 1px;
+      color: #fff;
+      background: #1f2d3d;
+      border-radius: 999px;
+    }
+    .admin-note {
+      margin: 14px 0 0;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #8a8f99;
+      text-align: center;
+    }
+    .admin-note a { color: #4a90d9; text-decoration: none; }
+  </style>
+</head>
+
+<body>
+  <div id="app"></div>
+  <!-- orb 动画等脚本在 Vue 渲染完成后由 src/entries/adminLogin.js 动态加载（必须晚于 DOM） -->
+  <script type="module" src="/src/entries/adminLogin.js"></script>
+</body>
+
+</html>

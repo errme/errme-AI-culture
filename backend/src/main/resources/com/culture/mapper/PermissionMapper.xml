@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN"
+        "http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+
+<!-- 权限 Mapper（新库 sys_permission 及 RBAC 中间表） -->
+<mapper namespace="com.culture.mapper.PermissionMapper">
+
+    <resultMap id="BaseResultMap" type="Permission">
+        <id column="id" property="id"></id>
+        <result column="name" property="name"></result>
+        <result column="title" property="title"></result>
+        <result column="pid" property="pid"></result>
+    </resultMap>
+
+    <!-- 根据用户id查询权限 -->
+    <select id="listPermissionByUserId" resultMap="BaseResultMap">
+        select p.*
+        from sys_role r
+                 join sys_user_role ur on r.id = ur.role_id
+                 join sys_role_permission rp on rp.role_id = r.id
+                 join sys_permission p on p.id = rp.permission_id
+        where ur.user_id = #{userid}
+
+    </select>
+    <!--查询所有的权限-->
+    <select id="findAllPermisisons" resultType="Permission">
+        select id, name, title, pid, menu_id menuId
+        from sys_permission
+        where deleted = 0;
+    </select>
+
+    <!-- ====================================================================
+         后台「菜单/目录角色权限配置」相关（增量新增）
+         注意：resultType="map" 时 MyBatis 默认不写入 null 值，Service 层会
+         统一把行规整成固定键的 LinkedHashMap，保证 JSON 字段齐全。
+         ==================================================================== -->
+
+    <!-- 1. 菜单/目录扁平列表：只取 deleted=0，按 pid,sort,id 排序 -->
+    <select id="listAllMenusFlat" resultType="map">
+        select id, name, url, icon, pid, sort, status
+        from sys_menu
+        where deleted = 0
+        order by pid, sort, id
+    </select>
+
+    <!-- 2. 所有启用角色（id/code/name/description） -->
+    <select id="listEnabledRoles" resultType="map">
+        select id, code, name, description
+        from sys_role
+        where deleted = 0
+          and status = 1
+        order by sort, id
+    </select>
+
+    <!-- 2. 所有角色已授予的菜单 id（只算「菜单类」权限：menu_id 非空且菜单未删除） -->
+    <select id="listAllRoleMenuIds" resultType="map">
+        select rp.role_id roleId, p.menu_id menuId
+        from sys_role_permission rp
+                 join sys_permission p on p.id = rp.permission_id
+                 join sys_menu m on m.id = p.menu_id
+        where p.deleted = 0
+          and p.menu_id is not null
+          and m.deleted = 0
+        group by rp.role_id, p.menu_id
+        order by rp.role_id, p.menu_id
+    </select>
+
+    <!-- 2/4. 某角色已授予的菜单 id（防自锁判断用） -->
+    <select id="listMenuIdsByRoleId" resultType="java.lang.Long">
+        select p.menu_id
+        from sys_role_permission rp
+                 join sys_permission p on p.id = rp.permission_id
+                 join sys_menu m on m.id = p.menu_id
+        where rp.role_id = #{roleId}
+          and p.deleted = 0
+          and p.menu_id is not null
+          and m.deleted = 0
+        group by p.menu_id
+        order by p.menu_id
+    </select>
+
+    <!-- 3. 角色是否存在 -->
+    <select id="countRoleById" resultType="java.lang.Long">
+        select count(*)
+        from sys_role
+        where id = #{roleId}
+          and deleted = 0
+    </select>
+
+    <!-- 3. 按 id 批量取有效菜单（用于校验 menuIds 合法性） -->
+    <select id="listMenusByIds" resultType="map">
+        select id, name, sort
+        from sys_menu
+        where deleted = 0
+          and id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 3. 恢复这些菜单下被逻辑删除的权限行 -->
+    <update id="restorePermissionsByMenuIds">
+        update sys_permission
+        set deleted = 0,
+            status = 1
+        where deleted &lt;&gt; 0
+          and menu_id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <!-- 3. 这些菜单中还没有「有效权限行」的菜单 id -->
+    <select id="listMenuIdsWithoutPermission" resultType="java.lang.Long">
+        select m.id
+        from sys_menu m
+        where m.deleted = 0
+          and m.id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          and not exists (select 1 from sys_permission p
+                          where p.menu_id = m.id and p.deleted = 0)
+        order by m.id
+    </select>
+
+    <!-- 3. 新建菜单对应的权限行（name/title 用菜单名，pid=0，sort 用菜单 sort） -->
+    <insert id="insertMenuPermission">
+        insert into sys_permission (name, title, pid, menu_id, sort, status, deleted)
+        values (#{name}, #{title}, 0, #{menuId}, #{sort}, 1, 0)
+    </insert>
+
+    <!-- 3. 取回菜单对应的权限 id（同一菜单存在多行时取最小 id） -->
+    <select id="listPermissionIdsByMenuIds" resultType="map">
+        select menu_id menuId, min(id) permissionId
+        from sys_permission
+        where deleted = 0
+          and menu_id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        group by menu_id
+    </select>
+
+    <!-- 3. 只删除该角色的「菜单类」授权（保留 menu_id 为 NULL 的按钮/操作类权限） -->
+    <delete id="deleteRoleMenuPermissions">
+        delete rp
+        from sys_role_permission rp
+                 join sys_permission p on p.id = rp.permission_id
+        where rp.role_id = #{roleId}
+          and p.menu_id is not null
+    </delete>
+
+    <!-- 3. 批量授予角色权限 -->
+    <insert id="insertRolePermissions">
+        insert into sys_role_permission (role_id, permission_id)
+        values
+        <foreach collection="permissionIds" item="permissionId" separator=",">
+            (#{roleId}, #{permissionId})
+        </foreach>
+    </insert>
+
+    <!-- 4. 按 url 查菜单 id（防自锁判断用） -->
+    <select id="findMenuIdByUrl" resultType="java.lang.Long">
+        select id
+        from sys_menu
+        where url = #{url}
+          and deleted = 0
+        order by id
+        limit 1
+    </select>
+
+    <!-- ====================================================================
+         5. 后台「按钮级权限」相关（增量新增）
+            约定：menu_id IS NULL = 按钮/操作级权限；menu_id 非空 = 菜单级权限。
+            resultType="map" 时不写入 null 列，Service 层用 pick() 兜底。
+         ==================================================================== -->
+
+    <!-- 5. 按钮级权限扁平列表（menu_id IS NULL 且 deleted = 0） -->
+    <select id="listAllButtonsFlat" resultType="map">
+        select id, name, title, sort
+        from sys_permission
+        where deleted = 0
+          and menu_id is null
+        order by sort, id
+    </select>
+
+    <!-- 5. 某角色已授予的按钮级权限 id -->
+    <select id="listButtonIdsByRoleId" resultType="java.lang.Long">
+        select p.id
+        from sys_role_permission rp
+                 join sys_permission p on p.id = rp.permission_id
+        where rp.role_id = #{roleId}
+          and p.deleted = 0
+          and p.menu_id is null
+        order by p.id
+    </select>
+
+    <!-- 5. 按 id 批量取权限元信息（不过滤 deleted：要区分「不存在 / 已删除 / 菜单类」） -->
+    <select id="listPermissionMetaByIds" resultType="map">
+        select id, name, menu_id menuId, deleted
+        from sys_permission
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 5. 只删除该角色的「按钮类」授权（保留 menu_id 非空的菜单类授权） -->
+    <delete id="deleteRoleButtonPermissions">
+        delete rp
+        from sys_role_permission rp
+                 join sys_permission p on p.id = rp.permission_id
+        where rp.role_id = #{roleId}
+          and p.menu_id is null
+    </delete>
+
+</mapper>

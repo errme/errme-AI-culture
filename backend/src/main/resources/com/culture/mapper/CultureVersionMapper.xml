@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN"
+ "http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+
+<!--
+  内容版本历史 Mapper（biz_culture_version）
+  列映射：culture_id->cultureId, cover_url->coverUrl, category_id->categoryId,
+         operator_id->operatorId, operator_name->operatorName, created_at->createTime
+  说明：插入时不写 created_at，交给表默认值 CURRENT_TIMESTAMP（与「同一分钟去重」用同一套时钟）。
+-->
+<mapper namespace="com.culture.mapper.CultureVersionMapper">
+
+	<!--
+	  版本列表列清单：刻意不含 longtext 正文，只带 CHAR_LENGTH(content) 作为 contentLength；
+	  也不带 operator_id（列表契约只要求 operatorName，operatorId 为 null 时不会序列化出来）。
+	-->
+	<sql id="listCols">
+		id, culture_id as cultureId, name, operator_name as operatorName,
+		created_at as createTime, CHAR_LENGTH(content) as contentLength
+	</sql>
+
+	<!-- 单条版本详情列清单：含完整正文，用于对比/预览/回滚 -->
+	<sql id="detailCols">
+		id, culture_id as cultureId, name, description, content, cover_url as coverUrl,
+		category_id as categoryId, operator_id as operatorId, operator_name as operatorName,
+		created_at as createTime
+	</sql>
+
+	<!-- 写入快照 -->
+	<insert id="insert" parameterType="CultureVersion">
+		insert into biz_culture_version
+			(culture_id, name, description, content, cover_url, category_id, operator_id, operator_name)
+		values
+			(#{cultureId}, #{name}, #{description}, #{content}, #{coverUrl}, #{categoryId}, #{operatorId}, #{operatorName})
+	</insert>
+
+	<!-- 版本详情（含正文全文） -->
+	<select id="findById" resultType="CultureVersion">
+		select <include refid="detailCols"/>
+		from biz_culture_version
+		where id = #{id}
+	</select>
+
+	<!-- 某内容的版本总数 -->
+	<select id="countByCultureId" resultType="java.lang.Long">
+		select count(*) from biz_culture_version where culture_id = #{cultureId}
+	</select>
+
+	<!-- 版本分页：按 id 倒序（即时间倒序），列表不返回正文 -->
+	<select id="queryPage" resultType="CultureVersion">
+		select <include refid="listCols"/>
+		from biz_culture_version
+		where culture_id = #{cultureId}
+		order by id desc
+		limit #{offset}, #{pageSize}
+	</select>
+
+	<!--
+	  同一自然分钟内是否已有快照（去重用）：
+	  DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:00') 把当前时间截断到分钟，例如 10:23:47 -> 10:23:00，
+	  于是「created_at >= 10:23:00」正好覆盖当前这一自然分钟。
+	  用数据库时间而非 Java 时间，避免应用与数据库时钟不一致导致去重失效。
+	-->
+	<select id="countRecentInCurrentMinute" resultType="java.lang.Integer">
+		select count(*)
+		from biz_culture_version
+		where culture_id = #{cultureId}
+		  and created_at >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:00')
+	</select>
+
+</mapper>
