@@ -28,6 +28,15 @@
   --ad-radius-sm: 8px;
   --ad-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 20px rgba(16, 24, 40, 0.05);
   --ad-gap: 16px;
+  /**
+   * 固定顶栏 .coder-layout-header 的实际高度。
+   * 它是 position:fixed，**不占布局空间**，内容区只能靠 padding-top 让位，
+   * 因此这个值必须与真实高度保持一致。
+   * 已在 1440 / 1280 / 1024 / 768 / 414 / 375 六档视口实测恒为 68px（来源：老主题
+   * style.min.css 的 `.coder-layout-header .navbar { min-height: 64px }` + 内边距）。
+   * 若将来改了顶栏高度，只需改这里一处。
+   */
+  --ad-header-h: 68px;
 }
 
 /* ---------- 页面骨架 ---------- */
@@ -162,8 +171,13 @@
   display: flex; align-items: center; gap: 10px;
   padding: 12px 16px; margin: 0 -16px -16px;
   border-top: 1px solid var(--ad-border);
+  /*
+   * 性能：这里原本有 backdrop-filter: blur(4px)，但背景是 rgba(255,255,255,0.94)
+   * ——94% 不透明，模糊基本看不见；而本元素是 position:sticky，
+   * 页面滚动时每一帧都要对「其下方正在滚过的内容」重新做一次模糊合成，
+   * 是滚动卡顿的典型来源。收益为零、代价实在，故移除。
+   */
   background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(4px);
 }
 
 /* ==========================================================================
@@ -321,12 +335,24 @@
 
 /* ---------- 顶栏标题与内容区 ---------- */
 /*
- * ⚠️ 这里必须保留侧边栏宽度作为左内边距：侧边栏是 `position: fixed`，**不占布局空间**，
- * 内容区靠 padding-left 让位（老主题写的是 240px）。一旦用 `padding` 简写把 left 覆盖成 20px，
- * 内容就会滑到固定导航底下被遮住 —— 这正是「导航栏把内容区遮住」的原因。
- * 240(侧边栏) + 20(常规留白) = 260px；折叠时回落到 20px。
+ * ⚠️ 内容区要同时为「固定顶栏」和「固定侧边栏」让位，两者都是 position:fixed、不占布局空间：
+ *   · padding-left —— 给侧边栏让位（老主题写的是 240px）。一旦被覆盖成 20px，
+ *     内容就会滑到固定导航底下被遮住。
+ *   · padding-top  —— 给顶栏让位。老主题写的是 68px，正好等于顶栏高度。
+ *
+ * 这里刻意**不使用 padding 简写**：简写会把没有显式写出的方向重置为 0/默认值。
+ * 之前的 `padding: 18px 20px 26px 260px` 正是踩了这个坑 —— 它只想着左内边距，
+ * 却把老主题的 padding-top: 68px 一起冲成了 18px，导致主内容区顶部被固定顶栏
+ * 遮住 50px（1440px 视口实测 overlap=50），即「右侧主内容区被上方元素遮挡」。
+ *
+ * 68(顶栏) + 18(常规留白) = 86px；侧边栏折叠时左侧回落到 20px。
  */
-.coder-layout-content { padding: 18px 20px 26px 260px; }
+.coder-layout-content {
+  padding-top: calc(var(--ad-header-h) + 18px);
+  padding-right: 20px;
+  padding-bottom: 26px;
+  padding-left: 260px;
+}
 .coder-layout-sidebar-close .coder-layout-content { padding-left: 20px; }
 
 /* ---------- 窄屏（与老主题同一个断点 1024px：此时侧边栏变抽屉，不再占位） ---------- */
@@ -334,7 +360,14 @@
   .ad-header { flex-direction: column; align-items: stretch; }
   .ad-header__actions { justify-content: flex-start; }
   .ad-tile { flex: 1 1 calc(50% - var(--ad-gap)); min-width: 140px; }
-  .coder-layout-content { padding: 14px 12px 20px 12px; }
+  /* 顶栏在此断点仍是 fixed 且高度不变（实测 68px），所以 padding-top 必须继续让位，
+     只是留白收紧到 14px。同样不能用 padding 简写。 */
+  .coder-layout-content {
+    padding-top: calc(var(--ad-header-h) + 14px);
+    padding-right: 12px;
+    padding-bottom: 20px;
+    padding-left: 12px;
+  }
   .coder-layout-sidebar-close .coder-layout-content { padding-left: 12px; }
 }
 @media (max-width: 576px) {

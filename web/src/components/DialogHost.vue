@@ -88,8 +88,18 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey, true))
   align-items: flex-start;
   justify-content: center;
   padding: 12vh 16px 24px;
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(2px);
+  /*
+   * 性能：这里刻意**不使用 backdrop-filter: blur()**。
+   *
+   * 本层是 position:fixed; inset:0（铺满整个视口），且参与 Transition 的透明度过渡。
+   * backdrop-filter 会让浏览器在动画的每一帧都对「整屏背景」重新做一次模糊合成，
+   * 开销随视口面积线性增长 —— 这正是「二次确认弹窗动画卡顿」的主因。
+   * 2px 的模糊视觉收益很小，却让弹窗成为整个后台最贵的动画，因此移除。
+   *
+   * 用略深一点的半透明遮罩（0.45 → 0.5）补偿去掉模糊后的层次感。
+   * 现在参与动画的只有 opacity 与 transform，二者都能由合成器独立完成，不触发重排重绘。
+   */
+  background: rgba(15, 23, 42, 0.5);
   overflow: auto;
 }
 .ds-dialog__card {
@@ -100,6 +110,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey, true))
   padding: 20px 22px 16px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
   color: #0f172a;
+  /* 提示浏览器把卡片提升为独立合成层，transform/opacity 动画不再触发重绘 */
+  will-change: transform, opacity;
 }
 .ds-dialog__head { display: flex; align-items: center; gap: 10px; }
 .ds-dialog__icon { line-height: 0; flex: 0 0 auto; }

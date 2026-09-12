@@ -70,7 +70,11 @@ const ICONS = {
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.28), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
   font-size: 14px;
   line-height: 1.5;
-  backdrop-filter: blur(6px);
+  /*
+   * 性能：这里原本有 backdrop-filter: blur(6px)，但背景是 rgba(..., 0.95)
+   * ——95% 不透明，后面的模糊几乎完全看不见。模糊仍会在提示条
+   * 入场/退场（opacity + transform 过渡）的每一帧重新计算，属于纯浪费，故移除。
+   */
 }
 .ds-toast__icon { flex: 0 0 auto; margin-top: 1px; line-height: 0; }
 .ds-toast__body { flex: 1 1 auto; min-width: 0; }
